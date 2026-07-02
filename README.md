@@ -8,20 +8,20 @@ A collection of utility scripts and libraries I use in different servers, Docker
 
 ## Install 
 
-Usage requires `uv`. If you don't already have it, then download `uv` with (does not require root): 
+Usage requires `uv`. If you don't already have it, then download `uv` with the below (does not require root): 
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-Install this package with the following:
+Then install this package with the following:
 
 ```bash
 uv sync
 ```
 
-Usage of this is done through the utility scripts above. For example, you may directly use `archive (path)`. 
+Usage of this package is done through the utility scripts above. For example, you may directly use `archive (path)`. 
 
 ## Secrets
 
