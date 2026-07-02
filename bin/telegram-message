@@ -8,6 +8,7 @@ import argparse
 import json 
 import os
 import subprocess 
+import sys
 
 from typing import Optional 
 from util.secrets import get as get_secrets
@@ -15,12 +16,21 @@ from util.secrets import get as get_secrets
 
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("message", type=str, help="The message to send") 
+    
+    if sys.stdin.isatty():
+        parser.add_argument("message", type=str, help="The message to send") 
+
     parser.add_argument("--chat-id", required=False, default=None, 
         help="Telegram chat ID (may also be specified in secrets file)")
     parser.add_argument("--bot-token", required=False, default=None, 
         help="Telegram bot token (may also be specified in secrets file)")
-    return parser.parse_args() 
+    
+    args = parser.parse_args() 
+    if not sys.stdin.isatty():
+        # It's not a TTY, so it's probably being piped from somewhere else. 
+        args.message = sys.stdin.read().strip()
+    
+    return args 
 
 
 def message(
