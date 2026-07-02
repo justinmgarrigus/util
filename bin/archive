@@ -1,0 +1,115 @@
+#!/usr/bin/env python3
+
+"""
+Archives a directory with maximum compression. 
+"""
+
+import argparse
+import os 
+import readline 
+import shutil 
+import subprocess
+import time
+
+from pathlib import Path 
+
+
+def get_args() -> argparse.Namespace:
+    basedir = f"{os.environ.get('WORK', '.')}/archive"
+
+    parser = argparse.ArgumentParser() 
+    parser.add_argument("src", help="The directory to archive")
+    parser.add_argument("dst", help="Where to put the archived result", 
+        nargs="?", default=basedir)
+    parser.add_argument("--no-interactive", default=False, action="store_true", 
+        help="If set, does not prompt the user for anything")
+    return parser.parse_args() 
+
+
+def yes_or_no(prompt: str) -> bool:
+    """
+    Prompts the user for a yes-or-no decision.
+    """
+
+    choice = input(prompt).strip().lower() 
+    while choice not in ("y", "yes", "n", "no"): 
+        choice = input(
+            "Invalid choice, expected one of (y/yes/n/no), try again: "
+        ).strip().lower() 
+
+    return choice in ("y", "yes")
+
+
+def get_size_str(path: str) -> str:
+    """
+    Returns a string representation of the size of the given path, pointing to 
+    either a file or directory. The unit is the closest non-decimal unit.  
+    """
+
+    path = Path(path) 
+    if path.is_file():
+        size_bytes = path.stat().st_size
+    elif path.is_dir():
+        size_bytes = sum(
+            f.stat().st_size
+            for f in path.rglob("*")
+            if f.is_file()
+        )
+    else:
+        raise FileNotFoundError(path) 
+
+    if size_bytes < 1024: return f"{size_bytes}B" 
+    elif size_bytes < 1024 ** 2: return f"{size_bytes/1024**1:.1f}KB" 
+    elif size_bytes < 1024 ** 3: return f"{size_bytes/1024**2:.1f}MB" 
+    else: return f"{size_bytes/1024**3:.1f}GB" 
+
+
+def main(src: str, dst: str, interactive: bool = True) -> None:
+    """
+    Archives the directory.
+    """
+
+    assert os.path.exists(src), f"{src} does not exist."
+    src = os.path.abspath(src)
+    dst = os.path.abspath(dst)
+    os.makedirs(dst, exist_ok=True) 
+    assert "\"" not in src and "\"" not in dst, (
+        f"We use double-quotes as a delimiter, so the paths must not contain "
+        f"them. Received the below:\nsrc: {src}\ndst: {dst}"
+    )
+
+    dname = os.path.basename(src)
+    full_dst = f"{dst}/{dname}.tar.xz"
+    assert not os.path.exists(full_dst), f"{full_dst} already exists."
+    
+    # Compress the file. 
+    print(f"Compressing \"{src}\" and storing into \"{full_dst}\"")
+    start_time = time.time() 
+    subprocess.run(
+        f"tar -C \"{src}\" -cf - . | xz -9e > \"{full_dst}\"",
+        shell=True, 
+        check=True
+    )
+    latency = time.time() - start_time 
+
+    print(f"Compression took {int(latency)} seconds")
+    print(f"Original size: {get_size_str(src)}")
+    print(f"New size: {get_size_str(full_dst)}")
+
+    if interactive:
+        do_delete = input("Delete the original? (y/n) ")
+    else:
+        print("Non-interactive, assuming we delete original") 
+        do_delete = True
+    
+    if do_delete:
+        shutil.rmtree(src)
+
+
+if __name__ == "__main__":
+    args = get_args()
+    main(
+        src=args.src,
+        dst=args.dst, 
+        interactive=(not args.no_interactive)
+    )
