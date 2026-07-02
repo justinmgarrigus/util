@@ -1,0 +1,14 @@
+Metadata-Version: 2.4
+Name: util
+Version: 0.1.0
+Summary: Collection of Linux utility scripts
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: pyyaml>=6.0.3
+
+# Utility
+
+A collection of utility scripts and libraries I use in different servers, Docker environments, and more. They offer consistent front-ends to tools I frequently use. Add `bin` to your `PATH`.
+
+* `archive`: archives a directory (by default, puts result in $WORK).
+* `unarchive`: un-archives a directory (by default, puts result in $WORK).
