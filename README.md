@@ -6,6 +6,23 @@ A collection of utility scripts and libraries I use in different servers, Docker
 * `unarchive`: un-archives a directory (by default, puts result in $WORK).
 * `telegram-message`: sends a message to a Telegram bot.
 
+## Install 
+
+Usage requires `uv`. If you don't already have it, then download `uv` with (does not require root): 
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+Install this package with the following:
+
+```bash
+uv sync
+```
+
+Usage of this is done through the utility scripts above. For example, you may directly use `archive (path)`. 
+
 ## Secrets
 
 *Secrets* may be provided in a "secrets.yaml" file at the root of this project (if you create this file, do not commit it), or its path may be provided with the `UTIL_SECRETS_PATH` environment variable. Secrets include the following:
