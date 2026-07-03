@@ -1,8 +1,0 @@
-README.md
-pyproject.toml
-src/util/git.py
-src/util.egg-info/PKG-INFO
-src/util.egg-info/SOURCES.txt
-src/util.egg-info/dependency_links.txt
-src/util.egg-info/requires.txt
-src/util.egg-info/top_level.txt
