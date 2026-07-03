@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "gitpython>=3.1.50",
+    "pytest>=9.1.1",
     "pyyaml>=6.0.3",
 ]
 
