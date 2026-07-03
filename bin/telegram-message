@@ -1,4 +1,4 @@
-#!/usr/bin/env -S uv run python
+#!/usr/bin/env python
 
 """
 Sends a message to a telegram bot identified by a chat ID and bot token.  

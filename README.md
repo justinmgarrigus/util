@@ -21,7 +21,7 @@ Install this package with the following:
 uv sync
 ```
 
-Usage of this is done through the utility scripts above. For example, you may directly use `archive (path)`. 
+In your `.bashrc`, add `source activate.csh`. Usage of these utility scripts are added through this activation script, allowing you to directly call them like `archive (path)`. 
 
 ## Secrets
 
