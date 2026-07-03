@@ -1,7 +1,8 @@
 import os
 
 from git import Repo
-from typing import Dict, Optional
+from pathlib import Path 
+from typing import Dict
 
 
 def get_git_root(child_path: str = ".") -> str: 
@@ -14,14 +15,14 @@ def get_git_root(child_path: str = ".") -> str:
     return repo.working_tree_dir
 
 
-def get_git_properties() -> Dict[str, Optional[str]]: 
+def get_git_properties() -> Dict[str, str]: 
     """
     Returns a collection of properties about the current git repository, 
     including:
       - "project_name" (str): name of the project.
       - "commit_hash" (str): hash of the current commit.
-      - "branch" (Optional[str]): name of the current branch if the current
-        branch is not detached, else None.
+      - "branch" (str): name of the current branch if the current
+        branch is not detached, else "detached".
       - "commit_message" (str): message associated with the last commit on this
         branch.
     """
@@ -33,7 +34,7 @@ def get_git_properties() -> Dict[str, Optional[str]]:
         "branch": (
             repo.active_branch.name
             if not repo.head.is_detached
-            else None
+            else "detached"
         ), 
         "commit_message": repo.head.commit.message.strip()
     }

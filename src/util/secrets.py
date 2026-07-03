@@ -32,4 +32,10 @@ def get():
 
     # Read the data. 
     with open(path, "r") as f:
-        return yaml.safe_load(f) 
+        props = yaml.safe_load(f) 
+
+    # The secrets file must not contain bash expressions, it should just be
+    # strings. If the user included something literal like "$WORK" in there, 
+    # then raise an error.
+    assert all("$" not in val for val in props.values())
+    return props 
