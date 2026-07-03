@@ -1,19 +1,39 @@
 import os
 
+from git import Repo
+from typing import Dict, Optional
 
-def get_git_root(start_path: str = ".") -> str: 
+
+def get_git_root(child_path: str = ".") -> str: 
     """
-    Returns the path of the directory (parent of start_path) which contains 
-    .git in it. If no git root exists, raises a FileNotFoundError. 
+    Returns the path of the directory (parent of child_path) which contains 
+    .git in it. 
+    """
+    
+    repo = Repo(child_path, search_parent_directories=True) 
+    return repo.working_tree_dir
+
+
+def get_git_properties() -> Dict[str, Optional[str]]: 
+    """
+    Returns a collection of properties about the current git repository, 
+    including:
+      - "project_name" (str): name of the project.
+      - "commit_hash" (str): hash of the current commit.
+      - "branch" (Optional[str]): name of the current branch if the current
+        branch is not detached, else None.
+      - "commit_message" (str): message associated with the last commit on this
+        branch.
     """
 
-    cwd = os.path.abspath(start_path)
-    while True:
-        if os.path.exists(f"{cwd}/.git"):
-            return cwd 
-
-        parent = os.path.dirname(cwd)
-        if cwd == parent:
-            raise FileNotFoundError(f"No .git found from {start_path}")
-        
-        cwd = parent 
+    repo = Repo(".", search_parent_directories=True)
+    return {
+        "project_name": Path(repo.working_tree_dir).name, 
+        "commit_hash": repo.head.commit.hexsha, 
+        "branch": (
+            repo.active_branch.name
+            if not repo.head.is_detached
+            else None
+        ), 
+        "commit_message": repo.head.commit.message.strip()
+    }
