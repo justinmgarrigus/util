@@ -373,7 +373,7 @@ class TestExperiment:
         assert len(Experiment.list()) == 3 
 
     
-    def test_multi_save(self: "TestExperiment") -> None:
+    def test_multi_save_same_object(self: "TestExperiment") -> None:
         """
         Saving the same experiment multiple times is fine.
         """
