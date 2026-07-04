@@ -7,7 +7,9 @@ RESEARCH_PATH.
 import datetime 
 import json
 import os
+import pathlib 
 import re
+import shutil 
 
 from typing import Any, Dict, List, Optional, Union
 from util.git import get_git_properties, get_git_root 
@@ -439,11 +441,25 @@ class Artifact:
         same Experiment must contain the same properties. If any of the values 
         in this props list represent a file or directory, then they *must* be a 
         pathlib.Path object (we raise exceptions for strings that point to a 
-        file/directory but are not pathlib.Path objects); these will be 
-        compressed and copied into the Artifact destination, and their paths 
-        will be changed to reflect the fact they're compressed + copied.
+        file/directory but are not pathlib.Path objects); these will be copied 
+        into the Artifact destination, and their paths will be changed to 
+        reflect the fact they're copied.
         """
     
+        # Check if any of the properties are paths.
+        for key, value in props.items():
+            if isinstance(value, str) and os.path.exists(value):
+                raise ValueError((
+                    f"Error: tried to create an artifact \"{ident}\", but one "
+                    f"of the properties (key = \"{key}\", value = "
+                    f"\"{value}\") is a string and represents a valid path. "
+                    "This is ambiguous since we do not know if we should copy "
+                    "that path to the destination. To be explicit, either "
+                    "implement precautions so it doesn't equal a path or turn "
+                    "it into a pathlib.Path object to resolve this ambiguity "
+                    "and enable copying."
+                ))
+
         self.experiment = experiment
         self.ident = ident
         self.props = props
@@ -479,23 +495,92 @@ class Artifact:
         
         assert all(key in obj.keys() for key in ("artifact-ident", "timestamp", 
             "properties"))
+        
+        # When we load the JSON properties, auto-cast any strings which are 
+        # paths into pathlib.Path objects.
+        def deserialize(obj: Any) -> Any:
+            if isinstance(obj, dict):
+                return { k : deserialize(v) for k, v in obj.items() }
+            elif isinstance(obj, (list, tuple)):
+                return [deserialize(o) for o in obj] 
+            else:
+                assert (
+                    obj is None or 
+                    isinstance(obj, (int, str, float))
+                )
+                if isinstance(obj, str) and os.path.exists(obj):
+                    return pathlib.Path(obj)
+                else:
+                    return obj 
+
         return Artifact(
             experiment=experiment, 
             ident=obj["artifact-ident"], 
-            props=obj["properties"], 
+            props=deserialize(obj["properties"]), 
             timestamp=obj["timestamp"]
         )
 
 
-    def to_json(self: "Artifact") -> Dict[str, Any]:
+    def to_json(
+        self: "Artifact", 
+        do_copy: bool, 
+        obj_save_dir: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
-        Turns us into a JSON representation.
+        Turns us into a JSON representation. For any pathlib.Path object, 
+        change its location so its pointed to obj_save_dir instead. If do_copy 
+        is set, then this function performs the copying to the new location. We 
+        raise an error if the destination already exists.
         """
+        
+        if do_copy:
+            assert obj_save_dir is not None 
+            assert os.path.exists(obj_save_dir)
+
+        def serialize(obj: Any) -> Any:
+            """
+            Construct a serializable representation of the properties. If any
+            paths exist, then copy them over.
+            """
+
+            if isinstance(obj, dict):
+                return { serialize(k) : serialize(v) for k, v in obj.items() }
+            elif isinstance(obj, (list, tuple)):
+                return [serialize(o) for o in obj] 
+            else:
+                if do_copy: 
+                    assert obj is None or isinstance(
+                        obj, 
+                        (int, str, float, pathlib.Path)
+                    )
+                    if isinstance(obj, pathlib.Path):
+                        # Form the target location. 
+                        name = obj.name
+                        path = f"{obj_save_dir}/{name}"
+                        if os.path.exists(path):
+                            raise FileExistsError(
+                                f"Cannot copy file; path \"{path}\" already "
+                                "exists."
+                            )
+                        
+                        # Copy it. Works for files or directories.
+                        if obj.is_file():
+                            shutil.copy(obj, path) 
+                        elif obj.is_dir():
+                            shutil.copytree(obj, path) 
+                        else:
+                            raise RuntimeError() 
+                        return path 
+                    else:
+                        return obj 
+                else:
+                    assert obj is None or isinstance(obj, (int, str, float))
+                    return obj
 
         return {
             "artifact-ident": self.ident, 
             "timestamp": self.timestamp,
-            "properties": self.props
+            "properties": serialize(self.props)
         }
 
 
@@ -512,7 +597,10 @@ class Artifact:
         # Copies any paths to the base directory. 
         # TODO
         
-        return self.to_json() 
+        return self.to_json(
+            obj_save_dir=save_basedir, 
+            do_copy=True
+        ) 
 
 
     def __eq__(self: "Artifact", other: "Artifact") -> bool:

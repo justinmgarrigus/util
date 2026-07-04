@@ -20,6 +20,7 @@ basename = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = f"{basename}/research-test-delete"  # Research data saved here
 DATA_DIR_2 = f"{DATA_DIR}-2"  # For testing multiple archives  
 SECRETS_YAML_LOC = f"{basename}/test-secrets.yaml"  # Test yaml file
+MEDIA_DIR = f"{basename}/test-media"  # Where media for copying is stored 
 
 
 @pytest.fixture(autouse=True)
@@ -46,6 +47,8 @@ def test_setup_teardown():
         shutil.rmtree(DATA_DIR_2)
     if os.path.exists(SECRETS_YAML_LOC):
         os.remove(SECRETS_YAML_LOC)
+    if os.path.exists(MEDIA_DIR):
+        shutil.rmtree(MEDIA_DIR)
 
 
 class TestDirectoryConstruction:
@@ -610,3 +613,203 @@ class TestArtifact:
         obtained_exp2 = next(e for e in exps if e == exp2)
         assert exp1 is not obtained_exp1
         assert exp2 is not obtained_exp2
+
+
+    def test_copy_file(self: "TestArtifact") -> None:
+        """
+        Tests that passing a file as a property means it gets copied to the 
+        target directory. 
+        """
+        
+        os.environ["RESEARCH_PATH"] = DATA_DIR
+        ident = "foo"
+        fname = "abc.txt"
+        exp = Experiment(name="a", ident=ident, description="b")
+
+        path = f"{MEDIA_DIR}/{fname}"
+        assert not os.path.exists(MEDIA_DIR)
+        os.makedirs(MEDIA_DIR) 
+        with open(path, "w") as f: 
+            f.write("test_copy_file 123")
+        art = Artifact(
+            experiment=exp, 
+            ident="art", 
+            props={
+                "my_file": pathlib.Path(path)
+            }
+        )
+        exp.add_artifact(art)
+        
+        # Delete original directory to confirm it's a copy.
+        shutil.rmtree(MEDIA_DIR)
+        
+        new_path = f"{DATA_DIR}/exp-{ident}/{fname}"
+        stored_exp = Experiment.list() 
+        art = stored_exp[0].artifacts[0] 
+        assert str(art.props["my_file"]) == new_path 
+
+        assert os.path.exists(new_path), new_path
+        with open(new_path, "r") as f:
+            assert f.read() == "test_copy_file 123"
+        
+
+    def test_copy_multiple_files(self: "TestArtifact") -> None:
+        """
+        Copies multiple files within a single artifact. 
+        """
+
+        os.environ["RESEARCH_PATH"] = DATA_DIR
+        exp = Experiment(name="a", ident="foo", description="b") 
+        
+        assert not os.path.exists(MEDIA_DIR)
+        os.makedirs(MEDIA_DIR) 
+        props = {}  
+        for idx in range(3):
+            path = f"{MEDIA_DIR}/item-{idx}.md"
+            with open(path, "w") as f: 
+                f.write(f"test_copy_multiple_files {idx}")
+            props[f"data-{idx}"] = pathlib.Path(path)
+
+        art = Artifact(
+            experiment=exp, 
+            ident="art", 
+            props=props
+        )
+        exp.add_artifact(art) 
+
+        # Delete original directory to confirm it's a copy.
+        shutil.rmtree(MEDIA_DIR)
+
+        stored_exp = Experiment.list() 
+        art = stored_exp[0].artifacts[0] 
+        assert all(
+            (
+                f"data-{idx}" in art.props and 
+                os.path.exists(art.props[f"data-{idx}"])
+            )
+            for idx in range(3)
+        )
+        for idx in range(3):
+            new_path = art.props[f"data-{idx}"]
+            with open(new_path, "r") as f:
+                assert f.read() == f"test_copy_multiple_files {idx}"
+
+
+    def test_copy_multiple_files_per_artifact(self: "TestArtifact") -> None:
+        """
+        Copies multiple files per artifact.
+        """
+        
+        os.environ["RESEARCH_PATH"] = DATA_DIR
+        
+        assert not os.path.exists(MEDIA_DIR)
+        os.makedirs(MEDIA_DIR) 
+        for idx in range(3):
+            path = f"{MEDIA_DIR}/item-{idx}.md"
+            with open(path, "w") as f: 
+                f.write(f"test_copy_multiple_files_per_artifact {idx}")
+            
+            exp = Experiment(name="a", ident=f"foo{idx}", description="b") 
+            art = Artifact(
+                experiment=exp, 
+                ident="art", 
+                props={"fname": pathlib.Path(path)} 
+            )
+            exp.add_artifact(art)
+
+        # Delete original directory to confirm it's a copy.
+        shutil.rmtree(MEDIA_DIR)
+
+        stored_exps = Experiment.list() 
+        for idx in range(3):
+            exp = next(exp for exp in stored_exps if exp.ident == f"foo{idx}")
+            art = exp.artifacts[0]
+            with open(art.props["fname"], "r") as f: 
+                assert (
+                    f.read() == f"test_copy_multiple_files_per_artifact {idx}"
+                )
+
+
+    def test_copy_directory(self: "TestArtifact") -> None:
+        """
+        Copies an entire directory instead of just a file.
+        """
+        
+        os.environ["RESEARCH_PATH"] = DATA_DIR
+        exp = Experiment(name="a", ident="foo", description="b") 
+        
+        assert not os.path.exists(MEDIA_DIR)
+        os.makedirs(MEDIA_DIR) 
+        for idx in range(3):
+            with open(f"{MEDIA_DIR}/item-{idx}.md", "w") as f: 
+                f.write(f"test_copy_directory {idx}")
+
+        art = Artifact(
+            experiment=exp, 
+            ident="art", 
+            props={"dname": pathlib.Path(MEDIA_DIR)}
+        )
+        exp.add_artifact(art) 
+
+        # Delete original directory to confirm it's a copy.
+        shutil.rmtree(MEDIA_DIR)
+
+        stored_exp = Experiment.list() 
+        art = stored_exp[0].artifacts[0] 
+        assert "dname" in art.props.keys()
+        path = f"{DATA_DIR}/exp-foo/{os.path.basename(MEDIA_DIR)}"
+        assert str(art.props["dname"]) == path
+        assert os.path.exists(path) 
+        for idx in range(3):
+            with open(f"{art.props['dname']}/item-{idx}.md", "r") as f:
+                assert f.read() == f"test_copy_directory {idx}"
+
+
+    def test_copy_file_str(self: "TestArtifact") -> None:
+        """
+        Confirms that for Artifacts, we can't have a property with a value 
+        that's a file path due to it being ambiguous whether it should be 
+        copied.
+        """
+
+        os.environ["RESEARCH_PATH"] = DATA_DIR
+        os.makedirs(MEDIA_DIR)
+        
+        path = f"{MEDIA_DIR}/foo.txt" 
+        with open(path, "w") as f:
+            f.write("abc") 
+
+        exp = Experiment(name="a", ident="foo", description="b") 
+        
+        try:
+            art = Artifact(
+                experiment=exp,
+                ident="art",
+                props={"path": path}
+            )
+            raise RuntimeError()
+        except ValueError:
+            pass 
+
+
+    def test_serializable(self: "TestArtifact") -> None:
+        """
+        We can't have a property that's not serializable, like a custom class. 
+        """
+
+        class TestClass:
+            pass
+
+        os.environ["RESEARCH_PATH"] = DATA_DIR
+        exp = Experiment(name="a", ident="foo", description="b") 
+        art = Artifact(
+            experiment=exp, 
+            ident="art", 
+            props={"foo": TestClass()}
+        )
+        
+        try:
+            exp.add_artifact(art)
+            raise ValueError() 
+        except:
+            pass 
