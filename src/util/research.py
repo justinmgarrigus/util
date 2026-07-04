@@ -240,28 +240,16 @@ class Experiment:
         # Obtain the contents of the index file.
         index = Experiment.list() 
 
-        # Two conditions, existing experiments and conflicting experiments: 
-        #   - An *existing experiment* is fine to append to. It represents a  
-        #     case where the artifacts in that experiment, and artifacts we are
-        #     likely to generate in this same Python session, probably come 
-        #     from the same distribution. 
-        #   - A *conflicting experiment* is not fine to append to. This is
-        #     determined by the git hash being different.
-        matching_idents = [exp for exp in index if exp.ident == self.ident]
-        assert len(matching_idents) <= 1, repr(matching_idents) 
-        if len(matching_idents) == 1: 
-            old_exp = matching_idents[0] 
-            if self.commit_hash != old_exp.commit_hash:
-                raise ValueError((
-                    "Error: you attempted to create an experiment with an "
-                    f"identifier (\"{self.ident}\") that already exists in "
-                    "the index. This is fine only as long as the git commits "
-                    "match, which they don't. Use a new identifier instead.\n"
-                    f"  Yours: hash = {self.commit_hash}, "
-                    f"commit_message = {self.commit_message}\n"
-                    f"  Old: hash = {old_exp.commit_hash}, "
-                    f"commit_message = {old_exp.commit_message}"
-                ))
+        # Does an experiment exist in our log that contains the same git hash
+        # and identifier? 
+        matching = [
+            exp 
+            for exp in index 
+            if exp.ident == self.ident and exp.commit_hash == self.commit_hash
+        ]
+        assert len(matching) <= 1, repr(matching) 
+        if len(matching) == 1: 
+            old_exp = matching[0] 
             
             # The experiment exists and is the same experiment, so it's fine to
             # add new artifacts to it. If the name/description are different,

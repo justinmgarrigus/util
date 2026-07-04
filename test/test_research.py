@@ -311,8 +311,8 @@ class TestExperiment:
     
     def test_duplicate_experiment_bad(self: "TestExperiment") -> None:
         """
-        We **cannot** have two experiments with the same identifier if the Git
-        hash changed. 
+        We **can** have two experiments with the same identifier if the Git
+        hash changed, but they must result in different Experiment objects. 
         """
     
         os.environ["RESEARCH_PATH"] = DATA_DIR
@@ -330,7 +330,7 @@ class TestExperiment:
         )
         exp2 = Experiment(
             name="a", 
-            ident="i",  # Different identifier, should be fine 
+            ident="i",  # Different identifier, new experiment 
             description="c", 
             created_timestamp="d", 
             modified_timestamp="e", 
@@ -341,7 +341,7 @@ class TestExperiment:
         )
         exp3 = Experiment(
             name="a", 
-            ident="b",  # Same identifier but different hash, bad  
+            ident="b",  # Same identifier but different hash, new experiment
             description="c", 
             created_timestamp="d", 
             modified_timestamp="e", 
@@ -350,14 +350,27 @@ class TestExperiment:
             branch="g", 
             commit_message="h"
         )
+        exp4 = Experiment(
+            name="z", 
+            ident="i",  # Same identifier and same hash, so same experiment
+            description="z", 
+            created_timestamp="z", 
+            modified_timestamp="z", 
+            project_name="f", 
+            commit_hash="1111111111111111111111111111111111111111",
+            branch="g", 
+            commit_message="h"
+        )
 
+        assert len(Experiment.list()) == 0
         exp1._save()
+        assert len(Experiment.list()) == 1
         exp2._save()
-        try:
-            exp3._save()
-            raise RuntimeError() 
-        except ValueError:
-            pass
+        assert len(Experiment.list()) == 2 
+        exp3._save() 
+        assert len(Experiment.list()) == 3 
+        exp4._save() 
+        assert len(Experiment.list()) == 3 
 
     
     def test_multi_save(self: "TestExperiment") -> None:
