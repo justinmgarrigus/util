@@ -59,50 +59,6 @@ class Experiment:
         return basedir
 
 
-    @staticmethod
-    def _is_index_valid(index: List["Experiment"]) -> bool:
-        """
-        Returns True if the entire experiment index is valid, and raises an 
-        error other. 
-        """
-        
-        def is_exp_valid(exp: "Experiment") -> bool:
-            # Should contain all expected keys. 
-            assert all(
-                (
-                    hasattr(exp, key) and 
-                    isinstance(key, str) and 
-                    isinstance(getattr(exp, key), str)
-                )
-                for key in ["name", "ident", "description", 
-                    "created_timestamp", "modified_timestamp", "project_name", 
-                    "commit_hash", "branch", "commit_message"]
-            ), repr(exp)
-            
-            # Identifier must be valid.
-            assert len(exp.ident) > 0
-            assert (
-                re.fullmatch(
-                    r"^[a-zA-Z0-9\-_\.]+$", 
-                    exp.ident
-                )
-            ), f"The identifier \"{exp.ident}\" contains illegal characters"
-            assert len(exp.commit_hash) == 40 and (
-                re.fullmatch(
-                    f"^[a-fA-F0-9]+$", 
-                    exp.commit_hash
-                )
-            ), f"The commit hash \"{exp.commit_hash}\" is not a valid hash"
-            return True
-        
-        assert isinstance(index, list)
-        assert all(
-            is_exp_valid(exp) 
-            for exp in index
-        )
-        return True 
-
-
     @classmethod 
     def list(cls) -> List["Experiment"]: 
         """
@@ -125,7 +81,6 @@ class Experiment:
 
         # Convert JSON to Experiment objects.
         index = [cls(**exp) for exp in index_json]
-        assert cls._is_index_valid(index) 
         return index 
 
 
@@ -139,7 +94,6 @@ class Experiment:
 
         basedir = cls._get_basedir()
         index_path = f"{basedir}/index.json" 
-        assert cls._is_index_valid(index)
         assert os.path.exists(index_path), index_path  # Created with list()  
             
         # Serialize the index.
@@ -193,16 +147,17 @@ class Experiment:
     ) -> None:
         """
         Creates an experiment. "name" and "description" are human-readable, 
-        while "ident" is unique. If the github repository is updated at all, 
-        then "ident" must point to something different since the content of 
-        the experiment/results obtained from it are likely different. If any
-        of the project parameters are None, then they all must be None; this 
-        signals that we should obtain them from the current repository instead 
-        of loaded as arguments.
+        while "ident" is unique. If there is one experiment in storage, and the
+        user attempts to create a new experiment with the same identifier but a
+        different Git commit hash, then this will result in two separate 
+        experiments since it's not unlikely the artifacts come from different 
+        distributions. If any of the project parameters are None, then they all 
+        must be None; this signals that we should obtain them from the current 
+        repository instead of loaded as arguments.
         
         This does not save the experiment to disk.
         """
-        
+             
         project_params = (project_name, commit_hash, branch, commit_message)
         if any(p is None for p in project_params):
             assert all(p is None for p in project_params)
@@ -213,6 +168,21 @@ class Experiment:
             commit_hash = props["commit_hash"] 
             branch = props["branch"] 
             commit_message = props["commit_message"] 
+        
+        # Validate properties. 
+        assert len(ident) > 0
+        assert (
+            re.fullmatch(
+                r"^[a-zA-Z0-9\-_\.]+$", 
+                ident
+            )
+        ), f"The identifier \"{ident}\" contains illegal characters"
+        assert len(commit_hash) == 40 and (
+            re.fullmatch(
+                f"^[a-fA-F0-9]+$", 
+                commit_hash
+            )
+        ), f"The commit hash \"{commit_hash}\" is not a valid hash"
 
         self.name = name 
         self.ident = ident 
@@ -234,7 +204,11 @@ class Experiment:
         load the artifacts until the user wants to do something with them. 
         """
         
-        path = f"{Experiment._get_basedir()}/exp-{self.ident}/index.json"
+        git_hash = self.commit_hash[:8]
+        path = (
+            f"{Experiment._get_basedir()}/"
+            f"exp-{self.ident}-{git_hash}/index.json"
+        )
         if os.path.exists(path):
             with open(path, "r") as f:
                 data = json.load(f) 
@@ -320,7 +294,11 @@ class Experiment:
         Experiment._save_index(index) 
 
         # Update the experiment-specific index.
-        dname = f"{Experiment._get_basedir()}/exp-{self.ident}"
+        git_hash = self.commit_hash[:8]
+        dname = (
+            f"{Experiment._get_basedir()}/"
+            f"exp-{self.ident}-{git_hash}"
+        )
         os.makedirs(dname, exist_ok=True) 
         artifacts = self.artifacts 
         if artifact is not None:
@@ -367,7 +345,8 @@ class Experiment:
 
         basedir = Experiment._get_basedir()  
         assert os.path.exists(basedir), basedir
-        exp_index = f"{basedir}/exp-{self.ident}/index.json"
+        git_hash = self.commit_hash[:8]
+        exp_index = f"{basedir}/exp-{self.ident}-{git_hash}/index.json"
         
         if os.path.exists(exp_index):
             with open(exp_index, "r") as f: 

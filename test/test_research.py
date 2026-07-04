@@ -11,8 +11,7 @@ import sys
 import tempfile
 import time 
 
-from util import git as git_module
-from util import secrets as secrets_module
+from util.git import get_git_properties, get_git_root 
 from util.research import Artifact, Experiment
 
 
@@ -462,15 +461,16 @@ class TestArtifact:
         
         os.environ["RESEARCH_PATH"] = DATA_DIR
         assert not os.path.exists(DATA_DIR)
+        git_hash = get_git_properties()["commit_hash"][:8]  
 
         exp = Experiment(name="a", ident="foo", description="c")
         art = Artifact(experiment=exp, ident="art0", props={"x": 1}) 
         exp.add_artifact(art) 
         assert os.path.exists(DATA_DIR)
         assert os.path.exists(f"{DATA_DIR}/index.json")
-        assert os.path.exists(f"{DATA_DIR}/exp-foo/index.json") 
+        assert os.path.exists(f"{DATA_DIR}/exp-foo-{git_hash}/index.json") 
         
-        with open(f"{DATA_DIR}/exp-foo/index.json", "r") as f:
+        with open(f"{DATA_DIR}/exp-foo-{git_hash}/index.json", "r") as f:
             # This file should contain a list of artifacts. None of the 
             # fields in experiments should be None. 
             data = json.load(f) 
@@ -643,7 +643,8 @@ class TestArtifact:
         # Delete original directory to confirm it's a copy.
         shutil.rmtree(MEDIA_DIR)
         
-        new_path = f"{DATA_DIR}/exp-{ident}/{fname}"
+        git_hash = get_git_properties()["commit_hash"][:8]  
+        new_path = f"{DATA_DIR}/exp-{ident}-{git_hash}/{fname}"
         stored_exp = Experiment.list() 
         art = stored_exp[0].artifacts[0] 
         assert str(art.props["my_file"]) == new_path 
@@ -757,7 +758,8 @@ class TestArtifact:
         stored_exp = Experiment.list() 
         art = stored_exp[0].artifacts[0] 
         assert "dname" in art.props.keys()
-        path = f"{DATA_DIR}/exp-foo/{os.path.basename(MEDIA_DIR)}"
+        git_hash = get_git_properties()["commit_hash"][:8]  
+        path = f"{DATA_DIR}/exp-foo-{git_hash}/{os.path.basename(MEDIA_DIR)}"
         assert str(art.props["dname"]) == path
         assert os.path.exists(path) 
         for idx in range(3):
