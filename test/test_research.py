@@ -307,6 +307,7 @@ class TestExperiment:
         
         exp1._save()
         exp2._save()  # No error  
+        assert len(Experiment.list()) == 1 
     
     
     def test_duplicate_experiment_bad(self: "TestExperiment") -> None:
@@ -657,7 +658,7 @@ class TestArtifact:
         shutil.rmtree(MEDIA_DIR)
         
         git_hash = get_git_properties()["commit_hash"][:8]  
-        new_path = f"{DATA_DIR}/exp-{ident}-{git_hash}/{fname}"
+        new_path = f"{DATA_DIR}/exp-{ident}-{git_hash}/art/{fname}"
         stored_exp = Experiment.list() 
         art = stored_exp[0].artifacts[0] 
         assert str(art.props["my_file"]) == new_path 
@@ -772,7 +773,10 @@ class TestArtifact:
         art = stored_exp[0].artifacts[0] 
         assert "dname" in art.props.keys()
         git_hash = get_git_properties()["commit_hash"][:8]  
-        path = f"{DATA_DIR}/exp-foo-{git_hash}/{os.path.basename(MEDIA_DIR)}"
+        path = (
+            f"{DATA_DIR}/exp-foo-{git_hash}/art/"
+            f"{os.path.basename(MEDIA_DIR)}"
+        )
         assert str(art.props["dname"]) == path
         assert os.path.exists(path) 
         for idx in range(3):
@@ -839,7 +843,7 @@ class TestArtifact:
         exp = Experiment(name="a", ident="foo", description="b")
         art1 = Artifact(
             experiment=exp,
-            ident="art", 
+            ident="v1.2.3", 
             props={"foo": 1}
         )
         art2 = Artifact(
@@ -877,4 +881,4 @@ class TestArtifact:
             exp.add_artifact(art2)
             raise RuntimeError()
         except AssertionError:
-            pass 
+            pass

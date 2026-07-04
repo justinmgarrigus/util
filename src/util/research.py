@@ -553,7 +553,9 @@ class Artifact:
                     if isinstance(obj, pathlib.Path):
                         # Form the target location. 
                         name = obj.name
-                        path = f"{obj_save_dir}/{name}"
+                        base = f"{obj_save_dir}/{self.ident}"
+                        os.makedirs(base, exist_ok=True)
+                        path = f"{base}/{name}"
                         if os.path.exists(path):
                             raise FileExistsError(
                                 f"Cannot copy file; path \"{path}\" already "
