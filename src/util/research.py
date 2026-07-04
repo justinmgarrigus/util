@@ -9,7 +9,7 @@ import json
 import os
 import re
 
-from typing import Any, Dict, List, Optional 
+from typing import Any, Dict, List, Optional, Union
 from util.git import get_git_properties, get_git_root 
 from util.secrets import get as get_secrets 
 
@@ -23,6 +23,21 @@ class Experiment:
     _index: Optional[List[Dict[str, str]]] = None 
     _basedir: Optional[str] = None  # Root of research directory 
     _index_path: Optional[str] = None
+    
+    @staticmethod
+    def timestamp(inp: Optional[str] = None) -> Union[str, datetime.datetime]: 
+        """
+        If an input timestamp is provided, then converts it to a datetime 
+        object. If no input timestamp is provided, then returns the current
+        time as a string. 
+        """
+
+        fmt = "%m/%d/%Y @ %H:%M:%S"  # 07/01/2026 @ 15:30:00
+        if inp is None:
+            return datetime.datetime.now().strftime(fmt)
+        else:
+            return datetime.datetime.strptime(inp, fmt) 
+            
     
     @classmethod
     def _reset(cls) -> None:
@@ -161,17 +176,6 @@ class Experiment:
         with open(cls._index_path, "w") as f:
             json.dump(index_json, f) 
 
-    
-    @staticmethod
-    def _timestamp() -> str: 
-        """
-        Returns the current timestamp. 
-        """
-
-        return datetime.datetime.now().strftime(
-            "%m/%d/%Y @ %H:%M:%S"  # 07/01/2026 @ 15:30:00
-        )
-
 
     @classmethod
     def _get(cls, experiment_ident: str) -> "Experiment":
@@ -281,13 +285,19 @@ class Experiment:
             old_exp.name = self.name 
             old_exp.ident = self.ident
             old_exp.description = self.description
-            old_exp.modified_timestamp = Experiment._timestamp()
+            old_exp.modified_timestamp = Experiment.timestamp()
             old_exp.artifacts.extend(self.artifacts) 
+
+            # For the current object which the user has access to through 
+            # "self", update properties to reflect the old object.
+            self.created_timestamp = old_exp.created_timestamp 
+            self.modified_timestamp = old_exp.modified_timestamp
+            self.artifacts = old_exp.artifacts
 
         else:
             # This experiment is being created for the first time.
-            self.created_timestamp = Experiment._timestamp()  
-            self.modified_timestamp = Experiment._timestamp() 
+            self.created_timestamp = Experiment.timestamp()  
+            self.modified_timestamp = Experiment.timestamp() 
             index.append(self)   
         
         # Update the general index. The index contains metadata about each 
@@ -339,7 +349,11 @@ class Experiment:
                     if key not in ("attribute-ident", "experiment-ident", 
                         "timestamp") 
                 }
-
+            
+            assert (
+                key in artifacts_json 
+                for key in ["experiment-ident", "artifacts"]
+            )
             return [
                 Artifact(
                     experiment=self, 
@@ -347,7 +361,7 @@ class Experiment:
                     props=obj_props(art), 
                     timestamp=art["timestamp"]
                 )
-                for art in artifacts_json
+                for art in artifacts_json["artifacts"]
             ]
 
         else:
@@ -407,7 +421,7 @@ class Artifact:
         self.props = props
         self.timestamp = (
             timestamp if timestamp is not None 
-            else Experiment._timestamp()
+            else Experiment.timestamp()
         )
 
     
