@@ -1,6 +1,6 @@
 # Utility
 
-A collection of utility scripts and libraries I use in different servers, Docker environments, and more. They offer consistent front-ends to tools I frequently use. Add `bin` to your `PATH`.
+A collection of utility scripts and libraries I use in different servers, Docker environments, and more. They offer consistent front-ends to tools I frequently use.
 
 * `archive`: archives a directory (by default, puts result in $WORK).
 * `unarchive`: un-archives a directory (by default, puts result in $WORK).
@@ -21,7 +21,12 @@ Install this package with the following:
 uv sync
 ```
 
-In your `.bashrc`, add `source activate.csh`. Usage of these utility scripts are added through this activation script, allowing you to directly call them like `archive (path)`. 
+In your `.bashrc`, add `source activate.csh`. Usage of these utility scripts are added through this activation script, allowing you to directly call them like `archive (path)`. When you install, it is recommended you run the tests to ensure everything works:
+
+```bash
+
+uv run pytest 
+```
 
 ## Secrets
 
@@ -29,3 +34,4 @@ In your `.bashrc`, add `source activate.csh`. Usage of these utility scripts are
 
 * `TELEGRAM_CHAT_ID`: the chat identifier for a Telegram bot.
 * `TELEGRAM_BOT_TOKEN`: the token for a Telegram bot. 
+* `RESEARCH_PATH`: base directory to where experiments/artifacts should be stored. 

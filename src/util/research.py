@@ -23,31 +23,42 @@ class Experiment:
     _index: Optional[List[Dict[str, str]]] = None 
     _basedir: Optional[str] = None  # Root of research directory 
     _index_path: Optional[str] = None
+    
+    @classmethod
+    def _reset(cls) -> None:
+        """
+        For test-cases. This resets the state of this class. 
+        """
+
+        cls._index = None
+        cls._basedir = None
+        cls._index_path = None 
 
     
+    @classmethod
+    def _get_basedir(cls) -> str: 
+        # The user may update the base directory multiple times in a single 
+        # session.
+        basedir = os.environ.get("RESEARCH_PATH", None) 
+        if basedir is None:
+            basedir = get_secrets().get("RESEARCH_PATH")
+            if basedir is None:
+                raise ValueError((
+                    "Error: no RESEARCH_PATH is provided as an environment "
+                    "variable or in secrets."
+                ))
+
+        if cls._basedir != basedir:
+            cls._index = None
+            cls._basedir = basedir
+            cls._index_path = None 
+            if not os.path.exists(cls._basedir):
+                os.makedirs(cls._basedir, exist_ok=True) 
+        return cls._basedir
+
+
     @staticmethod
-    def get_basedir() -> str: 
-        if Experiment._basedir is None:
-            Experiment._basedir = os.environ.get(
-                "RESEARCH_PATH", 
-                None 
-            )
-            if Experiment._basedir is None:
-                secrets = get_secrets()
-                if "RESEARCH_PATH" not in secrets:
-                    raise ValueError((
-                        "Error: no RESEARCH_PATH is provided as an " 
-                        "environment variable or in secrets."
-                    ))
-                Experiment._basedir = secrets["RESEARCH_PATH"] 
-
-            if not os.path.exists(Experiment._basedir):
-                os.makedirs(Experiment._basedir, exist_ok=True) 
-        return Experiment._basedir
-
-
-    @staticmethod
-    def is_index_valid(index: List["Experiment"]) -> bool:
+    def _is_index_valid(index: List["Experiment"]) -> bool:
         """
         Returns True if the entire experiment index is valid, and raises an 
         error other. 
@@ -67,12 +78,19 @@ class Experiment:
             ), repr(exp)
             
             # Identifier must be valid.
+            assert len(exp.ident) > 0
             assert (
                 re.fullmatch(
-                    r"^[a-zA-Z0-9\-_]+$", 
+                    r"^[a-zA-Z0-9\-_\.]+$", 
                     exp.ident
                 )
             ), f"The identifier \"{exp.ident}\" contains illegal characters"
+            assert len(exp.commit_hash) == 40 and (
+                re.fullmatch(
+                    f"^[a-fA-F0-9]+$", 
+                    exp.commit_hash
+                )
+            ), f"The commit hash \"{exp.commit_hash}\" is not a valid hash"
             return True
         
         assert isinstance(index, list)
@@ -84,41 +102,45 @@ class Experiment:
 
 
     @classmethod 
-    def get_index(cls) -> List["Experiment"]: 
+    def list(cls) -> List["Experiment"]: 
         """
-        The index keeps track of all experiments. This loads the index and 
-        additionally checks it's valid. If the index does not previously exist,
-        then it creates an index file.
+        Lists all experiments (equvalent to the experiment index). The index 
+        keeps track of all experiments. This loads the index and additionally 
+        checks it's valid. If the index does not previously exist, then it 
+        creates an index file.
         """
+        
+        cls._get_basedir()  # Refresh this
+        if cls._index is None:
+            basedir = cls._get_basedir() 
+            assert os.path.exists(basedir), basedir
 
-        if Experiment._index is None:
-            basedir = Experiment.get_basedir() 
-            Experiment._index_path = f"{basedir}/index.json"
-            if not os.path.exists(Experiment._index_path): 
-                with open(Experiment._index_path, "w") as f: 
+            cls._index_path = f"{basedir}/index.json"
+            if not os.path.exists(cls._index_path): 
+                with open(cls._index_path, "w") as f: 
                     f.write("[]")
-            with open(Experiment._index_path, "r") as f:
+            with open(cls._index_path, "r") as f:
                 index_json = json.load(f) 
-            
+
             # Convert JSON to Experiment objects.
-            Experiment._index = [Experiment(**exp) for exp in index_json]
-            assert Experiment.is_index_valid(Experiment._index) 
+            cls._index = [cls(**exp) for exp in index_json]
+            assert cls._is_index_valid(Experiment._index) 
          
-        return Experiment._index 
+        return cls._index 
 
 
     @classmethod
-    def save_index(cls) -> None:
+    def _save_index(cls) -> None:
         """
         Updates and saves the index file with the new experiments. After 
         creating any Experiment objects, this must be run. (It can be run 
         multiple times.) 
         """
 
-        index = cls.get_index()
-        assert Experiment.is_index_valid(index)
-        assert Experiment._index_path is not None  # Set with get_index
-        assert os.path.exists(Experiment._index_path), Experiment._index_path  
+        index = cls.list()
+        assert cls._is_index_valid(index)
+        assert cls._index_path is not None  # Set with list()
+        assert os.path.exists(cls._index_path), Experiment._index_path  
             
         # Serialize the index.
         index_json = [
@@ -136,12 +158,12 @@ class Experiment:
             for exp in index 
         ]
 
-        with open(Experiment._index_path, "w") as f:
+        with open(cls._index_path, "w") as f:
             json.dump(index_json, f) 
 
     
     @staticmethod
-    def timestamp() -> str: 
+    def _timestamp() -> str: 
         """
         Returns the current timestamp. 
         """
@@ -152,7 +174,7 @@ class Experiment:
 
 
     @classmethod
-    def get(cls, experiment_ident: str) -> "Experiment":
+    def _get(cls, experiment_ident: str) -> "Experiment":
         """
         Returns the Experiment object corresponding to the given identifier if 
         it exists or None if it doesn't exist. 
@@ -161,7 +183,7 @@ class Experiment:
         return next(
             (
                 experiment
-                for experiment in Experiment.get_index() 
+                for experiment in cls.list() 
                 if experiment.ident == experiment_ident
             ), 
             None
@@ -221,7 +243,7 @@ class Experiment:
         """
         
         # Obtain the contents of the index file.
-        index = Experiment.get_index() 
+        index = Experiment.list() 
 
         # Two conditions, existing experiments and conflicting experiments: 
         #   - An *existing experiment* is fine to append to. It represents a  
@@ -231,8 +253,8 @@ class Experiment:
         #   - A *conflicting experiment* is not fine to append to. This is
         #     determined by the git hash being different.
         matching_idents = [exp for exp in index if exp.ident == self.ident]
-        assert len(matching_idents) <= 1
-        if matching_idents == 1: 
+        assert len(matching_idents) <= 1, repr(matching_idents) 
+        if len(matching_idents) == 1: 
             old_exp = matching_idents[0] 
             if self.commit_hash != old_exp.commit_hash:
                 raise ValueError((
@@ -259,21 +281,21 @@ class Experiment:
             old_exp.name = self.name 
             old_exp.ident = self.ident
             old_exp.description = self.description
-            old_exp.modified_timestamp = Experiment.timestamp()
+            old_exp.modified_timestamp = Experiment._timestamp()
             old_exp.artifacts.extend(self.artifacts) 
 
         else:
             # This experiment is being created for the first time.
-            self.created_timestamp = Experiment.timestamp()  
-            self.modified_timestamp = Experiment.timestamp() 
+            self.created_timestamp = Experiment._timestamp()  
+            self.modified_timestamp = Experiment._timestamp() 
             index.append(self)   
         
         # Update the general index. The index contains metadata about each 
         # artifact, but not the artifacts themselves.
-        Experiment.save_index() 
+        Experiment._save_index() 
 
         # Update the experiment-specific index.
-        dname = f"{Experiment.get_basedir()}/exp-{self.ident}"
+        dname = f"{Experiment._get_basedir()}/exp-{self.ident}"
         os.makedirs(dname, exist_ok=True) 
         experiment_data = {
             "experiment-ident": self.ident, 
@@ -287,7 +309,7 @@ class Experiment:
             json.dump(experiment_data, f) 
 
 
-    def load_artifacts(self: "Experiment") -> List["Artifact"]: 
+    def _load_artifacts(self: "Experiment") -> List["Artifact"]: 
         """
         A given experiment contains its own index of the artifacts it contains.
         The location of this index is the same as the research base directory, 
@@ -295,9 +317,9 @@ class Experiment:
         of artifacts for us.
         """
 
-        basedir = Experiment.get_basedir()  
+        basedir = Experiment._get_basedir()  
         assert os.path.exists(basedir), basedir
-        exp_index = f"{basedir}/{self.ident}.json"
+        exp_index = f"{basedir}/exp-{self.ident}/index.json"
         
         if os.path.exists(exp_index):
             with open(exp_index, "r") as f: 
@@ -320,8 +342,8 @@ class Experiment:
 
             return [
                 Artifact(
-                    experiment=Experiment.get(art["experiment-ident"]), 
-                    ident=art["artifact-ident"], 
+                    experiment=self, 
+                    ident=art["ident"], 
                     props=obj_props(art), 
                     timestamp=art["timestamp"]
                 )
@@ -341,6 +363,18 @@ class Experiment:
 
         assert not artifact.exists()
         self.artifacts.append(artifact) 
+
+
+    def __str__(self: "Experiment") -> str:
+        return (
+            f"Experiment("
+            f"ident={self.ident}, "
+            f"len(artifacts)={len(self.artifacts)})"
+        )
+
+
+    def __repr__(self: "Experiment") -> str:
+        return str(self) 
 
  
 class Artifact:
@@ -373,7 +407,7 @@ class Artifact:
         self.props = props
         self.timestamp = (
             timestamp if timestamp is not None 
-            else Experiment.timestamp()
+            else Experiment._timestamp()
         )
 
     
@@ -384,7 +418,7 @@ class Artifact:
         to it already being collected.
         """
 
-        artifacts = self.experiment.load_artifacts()
+        artifacts = self.experiment._load_artifacts()
         return any(
             self.ident == art.ident
             for art in artifacts
