@@ -113,23 +113,6 @@ class Experiment:
             json.dump(index_json, f) 
 
 
-    @classmethod
-    def _get(cls, experiment_ident: str) -> "Experiment":
-        """
-        Returns the Experiment object corresponding to the given identifier if 
-        it exists or None if it doesn't exist. 
-        """
-
-        return next(
-            (
-                experiment
-                for experiment in cls.list() 
-                if experiment.ident == experiment_ident
-            ), 
-            None
-        )
-
-
     def __init__(
         self: "Experiment", 
         name: str, 
