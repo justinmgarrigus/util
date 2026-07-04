@@ -5,6 +5,7 @@ RESEARCH_PATH.
 """
 
 import datetime 
+import fcntl 
 import json
 import os
 import pathlib 
@@ -21,7 +22,10 @@ class Experiment:
     An Experiment is a group of research artifacts. Each artifact within the
     experiment should have the same queryable structure.
     """
-    
+
+    LOCK = f"{os.path.abspath(os.path.dirname(__file__))}/.lock"
+
+
     @staticmethod
     def timestamp(inp: Optional[str] = None) -> Union[str, datetime.datetime]: 
         """
@@ -368,15 +372,22 @@ class Experiment:
         Adds an artifact to our storage. Raises an error if this artifact 
         already exists. If the artifact does not have an experiment attached to
         it (which may be the case if the artifact was constructed manually), 
-        then add us as the owner. 
-        """
+        then add us as the owner.
 
-        if artifact.experiment is None:
-            artifact.experiment = self 
-        else:
-            assert artifact.experiment == self
-        assert not artifact.exists()
-        self._save(artifact)
+        Additions of artifacts (and the subsequent modifications of the 
+        underlying files) are atomic. Multiple processes can add artifacts at
+        the same time without worrying about file state being stale.
+        """
+        
+        with open(Experiment.LOCK, "a") as lock: 
+            fcntl.flock(lock, fcntl.LOCK_EX)
+
+            if artifact.experiment is None:
+                artifact.experiment = self 
+            else:
+                assert artifact.experiment == self
+            assert not artifact.exists()
+            self._save(artifact)
 
 
     def __str__(self: "Experiment") -> str:

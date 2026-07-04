@@ -2,3 +2,4 @@ secrets.yaml
 *.egg-info/
 __pycache__/
 *.swp
+.lock
