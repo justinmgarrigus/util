@@ -429,7 +429,7 @@ class Artifact:
 
     def __init__(
         self: "Artifact", 
-        experiment: Optional[Experiment], 
+        experiment: Experiment, 
         ident: str, 
         props: Dict[str, Any],
         timestamp: Optional[str] = None
@@ -442,8 +442,6 @@ class Artifact:
         file/directory but are not pathlib.Path objects); these will be 
         compressed and copied into the Artifact destination, and their paths 
         will be changed to reflect the fact they're compressed + copied.
-        "experiment" may be None during construction of this object, but it 
-        must not be None by the time we want to save it. 
         """
     
         self.experiment = experiment
@@ -511,8 +509,6 @@ class Artifact:
         this experiment. 
         """
         
-        assert self.experiment is not None 
-        
         # Copies any paths to the base directory. 
         # TODO
         
@@ -527,15 +523,8 @@ class Artifact:
         if not isinstance(other, Artifact):
             return False 
         
-        if (self.experiment is None) != (other.experiment is None):
-            # Exactly one is None (XOR).
-            return False 
-
         return (
-            (
-                (self.experiment is None and other.experiment is None) or  
-                (self.experiment.ident == other.experiment.ident) 
-            ) and 
+            self.experiment.ident == other.experiment.ident and  
             self.ident == other.ident
         )
 
