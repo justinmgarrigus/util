@@ -23,9 +23,6 @@ class Experiment:
     experiment should have the same queryable structure.
     """
 
-    LOCK = f"{os.path.abspath(os.path.dirname(__file__))}/.lock"
-
-
     @staticmethod
     def timestamp(inp: Optional[str] = None) -> Union[str, datetime.datetime]: 
         """
@@ -56,7 +53,7 @@ class Experiment:
         
         if not os.path.exists(basedir):
             os.makedirs(basedir, exist_ok=True) 
-        return basedir
+        return os.path.abspath(basedir) 
 
 
     @classmethod 
@@ -365,7 +362,7 @@ class Experiment:
         the same time without worrying about file state being stale.
         """
         
-        with open(Experiment.LOCK, "a") as lock: 
+        with open(f"{self._get_basedir()}/.lock", "a") as lock: 
             fcntl.flock(lock, fcntl.LOCK_EX)
 
             if artifact.experiment is None:
