@@ -20,10 +20,6 @@ class Experiment:
     experiment should have the same queryable structure.
     """
     
-    _index: Optional[List[Dict[str, str]]] = None 
-    _basedir: Optional[str] = None  # Root of research directory 
-    _index_path: Optional[str] = None
-    
     @staticmethod
     def timestamp(inp: Optional[str] = None) -> Union[str, datetime.datetime]: 
         """
@@ -40,17 +36,6 @@ class Experiment:
             
     
     @classmethod
-    def _reset(cls) -> None:
-        """
-        For test-cases. This resets the state of this class. 
-        """
-
-        cls._index = None
-        cls._basedir = None
-        cls._index_path = None 
-
-    
-    @classmethod
     def _get_basedir(cls) -> str: 
         # The user may update the base directory multiple times in a single 
         # session.
@@ -62,14 +47,10 @@ class Experiment:
                     "Error: no RESEARCH_PATH is provided as an environment "
                     "variable or in secrets."
                 ))
-
-        if cls._basedir != basedir:
-            cls._index = None
-            cls._basedir = basedir
-            cls._index_path = None 
-            if not os.path.exists(cls._basedir):
-                os.makedirs(cls._basedir, exist_ok=True) 
-        return cls._basedir
+        
+        if not os.path.exists(basedir):
+            os.makedirs(basedir, exist_ok=True) 
+        return basedir
 
 
     @staticmethod
@@ -122,40 +103,38 @@ class Experiment:
         Lists all experiments (equvalent to the experiment index). The index 
         keeps track of all experiments. This loads the index and additionally 
         checks it's valid. If the index does not previously exist, then it 
-        creates an index file.
+        creates an index file. This function is **not cached**, it completely
+        regenerates objects each time it's called. 
         """
         
-        cls._get_basedir()  # Refresh this
-        if cls._index is None:
-            basedir = cls._get_basedir() 
-            assert os.path.exists(basedir), basedir
+        basedir = cls._get_basedir() 
+        assert os.path.exists(basedir), basedir
 
-            cls._index_path = f"{basedir}/index.json"
-            if not os.path.exists(cls._index_path): 
-                with open(cls._index_path, "w") as f: 
-                    f.write("[]")
-            with open(cls._index_path, "r") as f:
-                index_json = json.load(f) 
+        index_path = f"{basedir}/index.json"
+        if not os.path.exists(index_path): 
+            with open(index_path, "w") as f: 
+                f.write("[]")
+        with open(index_path, "r") as f:
+            index_json = json.load(f) 
 
-            # Convert JSON to Experiment objects.
-            cls._index = [cls(**exp) for exp in index_json]
-            assert cls._is_index_valid(Experiment._index) 
-         
-        return cls._index 
+        # Convert JSON to Experiment objects.
+        index = [cls(**exp) for exp in index_json]
+        assert cls._is_index_valid(index) 
+        return index 
 
 
     @classmethod
-    def _save_index(cls) -> None:
+    def _save_index(cls, index: List[Dict[str, str]]) -> None:
         """
         Updates and saves the index file with the new experiments. After 
         creating any Experiment objects, this must be run. (It can be run 
         multiple times.) 
         """
 
-        index = cls.list()
+        basedir = cls._get_basedir()
+        index_path = f"{basedir}/index.json" 
         assert cls._is_index_valid(index)
-        assert cls._index_path is not None  # Set with list()
-        assert os.path.exists(cls._index_path), Experiment._index_path  
+        assert os.path.exists(index_path), index_path  # Created with list()  
             
         # Serialize the index.
         index_json = [
@@ -173,7 +152,7 @@ class Experiment:
             for exp in index 
         ]
 
-        with open(cls._index_path, "w") as f:
+        with open(index_path, "w") as f:
             json.dump(index_json, f) 
 
 
@@ -238,12 +217,44 @@ class Experiment:
         self.commit_hash = commit_hash
         self.branch = branch 
         self.commit_message = commit_message 
-        self.artifacts = []
-
-
-    def save(self: "Experiment") -> None:
+    
+    
+    @property 
+    def artifacts(self: "Experiment") -> List["Artifact"]:
         """
-        Saves an experiment to disk. Verifies all the parameters, too.  
+        Returns the list of Artifacts for this Experiment. This is a function 
+        instead of a standard property because initially, only the *index* is 
+        loaded for an Experiment if we do "list()". We don't actually want to 
+        load the artifacts until the user wants to do something with them. 
+        """
+        
+        path = f"{Experiment._get_basedir()}/exp-{self.ident}/index.json"
+        if os.path.exists(path):
+            with open(path, "r") as f:
+                data = json.load(f) 
+            assert all(key in data.keys() for key in ("experiment-ident", 
+                "artifacts"))
+            assert data["experiment-ident"] == self.ident
+            
+            return [
+                Artifact.from_json(art, self) 
+                for art in data["artifacts"] 
+            ]
+        else:
+            return [] 
+
+    
+    def _save(
+        self: "Experiment", 
+        artifact: Optional["Artifact"] = None
+    ) -> None:
+        """
+        Saves an experiment to disk. Verifies all the parameters, too. Note 
+        this should *not* be called outside of this file (but it can be called
+        via test-cases to confirm Experiment-saving in isolation). The intended
+        route is for the user to call "add_artifact" which implicitly re-saves
+        this to disk. If an artifact is provided as an argument, then appends 
+        it to the collection; otherwise, just saves the index. 
         """
         
         # Obtain the contents of the index file.
@@ -286,32 +297,34 @@ class Experiment:
             old_exp.ident = self.ident
             old_exp.description = self.description
             old_exp.modified_timestamp = Experiment.timestamp()
-            old_exp.artifacts.extend(self.artifacts) 
 
             # For the current object which the user has access to through 
             # "self", update properties to reflect the old object.
             self.created_timestamp = old_exp.created_timestamp 
             self.modified_timestamp = old_exp.modified_timestamp
-            self.artifacts = old_exp.artifacts
 
         else:
             # This experiment is being created for the first time.
             self.created_timestamp = Experiment.timestamp()  
             self.modified_timestamp = Experiment.timestamp() 
-            index.append(self)   
+            index.append(self) 
         
         # Update the general index. The index contains metadata about each 
         # artifact, but not the artifacts themselves.
-        Experiment._save_index() 
+        Experiment._save_index(index) 
 
         # Update the experiment-specific index.
         dname = f"{Experiment._get_basedir()}/exp-{self.ident}"
         os.makedirs(dname, exist_ok=True) 
+        artifacts = self.artifacts 
+        if artifact is not None:
+            assert artifact not in artifacts 
+            artifacts.append(artifact)  # Add new artifact 
         experiment_data = {
             "experiment-ident": self.ident, 
             "artifacts": [
-                artifact.save(dname)
-                for artifact in self.artifacts
+                artifact._save(dname)
+                for artifact in artifacts
             ]
         }
         index_path = f"{dname}/index.json"
@@ -335,35 +348,14 @@ class Experiment:
             with open(exp_index, "r") as f: 
                 artifacts_json = json.load(f)
             
-            # Convert JSON to Artifact objects. 
-            def obj_props(json_obj: Dict[str, Any]) -> Dict[str, Any]:
-                """
-                The artifact object has an attribute containing all properties 
-                that are not standard (i.e., are not the attribute-identifier,
-                experiment-identifier, etc.). Return these. 
-                """
-
-                return {
-                    key: value 
-                    for key, value in json_obj.items()
-                    if key not in ("attribute-ident", "experiment-ident", 
-                        "timestamp") 
-                }
-            
             assert (
                 key in artifacts_json 
                 for key in ["experiment-ident", "artifacts"]
             )
             return [
-                Artifact(
-                    experiment=self, 
-                    ident=art["ident"], 
-                    props=obj_props(art), 
-                    timestamp=art["timestamp"]
-                )
-                for art in artifacts_json["artifacts"]
+                Artifact.from_json(obj, self)
+                for obj in artifacts_json["artifacts"]
             ]
-
         else:
             # No artifacts exist yet. 
             return []
@@ -372,11 +364,17 @@ class Experiment:
     def add_artifact(self: "Experiment", artifact: "Artifact") -> None:
         """
         Adds an artifact to our storage. Raises an error if this artifact 
-        already exists.
+        already exists. If the artifact does not have an experiment attached to
+        it (which may be the case if the artifact was constructed manually), 
+        then add us as the owner. 
         """
 
+        if artifact.experiment is None:
+            artifact.experiment = self 
+        else:
+            assert artifact.experiment == self
         assert not artifact.exists()
-        self.artifacts.append(artifact) 
+        self._save(artifact)
 
 
     def __str__(self: "Experiment") -> str:
@@ -390,6 +388,36 @@ class Experiment:
     def __repr__(self: "Experiment") -> str:
         return str(self) 
 
+
+    def __eq__(
+        self: "Experiment", 
+        other: Union["Experiment", Dict, Any]
+    ) -> bool:
+        """
+        Returns True if the other object represents the same kind of Experiment
+        as us with the same data. Raises an error if the other experiment is 
+        unsafe, as we want to discourage the user from doing anything bad.
+        """
+        
+        if isinstance(other, dict): 
+            assert all(key in other for key in ("name", "ident", "description", 
+                "created_timestamp", "modified_timestamp", "project_name", 
+                "commit_hash", "branch", "commit_message"))
+            other = Experiment(**other) 
+        elif not isinstance(other, Experiment):
+            return False 
+
+        if self.ident == other.ident and self.commit_hash == other.commit_hash:
+            # All of our artifacts *must* equal the other. If it doesn't, the
+            # user is manually constructing Experiments on their own and is 
+            # getting themselves in unsafe territory, so raise an error so they
+            # can correct their code. 
+            assert len(self.artifacts) == len(other.artifacts)
+            assert all(art in other.artifacts for art in self.artifacts) 
+            return True 
+        else:
+            return False
+
  
 class Artifact:
     """
@@ -397,11 +425,11 @@ class Artifact:
     Artifacts are queryable and associated with experiments. Artifacts are 
     composed of a collection of properties. Artifacts may also contain files,
     which are copied to a different location. 
-    """
-    
+    """  
+
     def __init__(
         self: "Artifact", 
-        experiment: Experiment, 
+        experiment: Optional[Experiment], 
         ident: str, 
         props: Dict[str, Any],
         timestamp: Optional[str] = None
@@ -414,6 +442,8 @@ class Artifact:
         file/directory but are not pathlib.Path objects); these will be 
         compressed and copied into the Artifact destination, and their paths 
         will be changed to reflect the fact they're compressed + copied.
+        "experiment" may be None during construction of this object, but it 
+        must not be None by the time we want to save it. 
         """
     
         self.experiment = experiment
@@ -437,9 +467,41 @@ class Artifact:
             self.ident == art.ident
             for art in artifacts
         )
+    
+
+    @classmethod
+    def from_json(
+        cls, 
+        obj: Dict[str, Any], 
+        experiment: Optional[Experiment] = None
+    ) -> "Artifact":
+        """
+        Returns an Artifact object created from a JSON representation. 
+        """
+        
+        assert all(key in obj.keys() for key in ("artifact-ident", "timestamp", 
+            "properties"))
+        return Artifact(
+            experiment=experiment, 
+            ident=obj["artifact-ident"], 
+            props=obj["properties"], 
+            timestamp=obj["timestamp"]
+        )
 
 
-    def save(self: "Artifact", save_basedir: str) -> Dict[str, Any]:
+    def to_json(self: "Artifact") -> Dict[str, Any]:
+        """
+        Turns us into a JSON representation.
+        """
+
+        return {
+            "artifact-ident": self.ident, 
+            "timestamp": self.timestamp,
+            "properties": self.props
+        }
+
+
+    def _save(self: "Artifact", save_basedir: str) -> Dict[str, Any]:
         """
         Saves an artifact to disk. Verifies all the parameters, too. Note that
         we should *only* be saving things to an Experiment with the same git
@@ -449,11 +511,45 @@ class Artifact:
         this experiment. 
         """
         
+        assert self.experiment is not None 
+        
         # Copies any paths to the base directory. 
         # TODO
         
-        return {
-            "ident": self.ident, 
-            "timestamp": self.timestamp,
-            "properties": self.props
-        }
+        return self.to_json() 
+
+
+    def __eq__(self: "Artifact", other: "Artifact") -> bool:
+        """
+        Returns True if this artifact functionally equals the other.
+        """
+        
+        if not isinstance(other, Artifact):
+            return False 
+        
+        if (self.experiment is None) != (other.experiment is None):
+            # Exactly one is None (XOR).
+            return False 
+
+        return (
+            (
+                (self.experiment is None and other.experiment is None) or  
+                (self.experiment.ident == other.experiment.ident) 
+            ) and 
+            self.ident == other.ident
+        )
+
+
+    def __str__(self: "Artifact") -> str:
+        exp_id = None if self.experiment is None else self.experiment.ident
+        return (
+            f"Artifact("
+            f"experiment_ident={exp_id}, "
+            f"artifact_ident={self.ident}, "
+            f"timestamp={self.timestamp}, "
+            f"props={self.props})"
+        )
+
+
+    def __repr__(self: "Artifact") -> str:
+        return str(self) 

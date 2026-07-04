@@ -33,7 +33,6 @@ def test_setup_teardown():
     old_environ = dict(os.environ)
     os.environ.pop("RESEARCH_PATH", default=None) 
     os.environ.pop("UTIL_SECRETS_PATH", default=None)
-    Experiment._reset() 
 
     # Run the tests.
     yield 
@@ -65,7 +64,7 @@ class TestDirectoryConstruction:
     
         os.environ["RESEARCH_PATH"] = DATA_DIR
         exp = Experiment(name="a", ident="b", description="c")
-        exp.save() 
+        exp._save() 
         
         assert os.path.exists(DATA_DIR)
     
@@ -95,7 +94,7 @@ class TestDirectoryConstruction:
             f.write(f"RESEARCH_PATH: \"{DATA_DIR}\"")
         
         exp = Experiment(name="a", ident="b", description="c")
-        exp.save() 
+        exp._save() 
         
         assert os.path.exists(DATA_DIR)
     
@@ -114,7 +113,7 @@ class TestDirectoryConstruction:
         
         exp = Experiment(name="a", ident="b", description="c")
         try:
-            exp.save()
+            exp._save()
             raise RuntimeError() 
         except FileNotFoundError: 
             pass
@@ -146,7 +145,7 @@ class TestDirectoryConstruction:
             f.write(f"abc")
     
         try:
-            exp.save()
+            exp._save()
             raise RuntimeError()
         except AssertionError: 
             pass
@@ -163,13 +162,13 @@ class TestDirectoryConstruction:
         exp = Experiment(name="a", ident="b", description="c") 
         
         os.environ["RESEARCH_PATH"] = DATA_DIR 
-        exp.save() 
+        exp._save() 
         assert os.path.exists(DATA_DIR)
         assert not os.path.exists(DATA_DIR_2)
         shutil.rmtree(DATA_DIR)
     
         os.environ["RESEARCH_PATH"] = DATA_DIR_2 
-        exp.save() 
+        exp._save() 
         assert not os.path.exists(DATA_DIR)
         assert os.path.exists(DATA_DIR_2)
 
@@ -188,11 +187,11 @@ class TestExperiment:
         assert not os.path.exists(DATA_DIR)
     
         exp1 = Experiment(name="a", ident="a", description="a")
-        exp1.save() 
+        exp1._save() 
         exp2 = Experiment(name="b", ident="b", description="b")
-        exp2.save() 
+        exp2._save() 
         exp3 = Experiment(name="c", ident="c", description="c")
-        exp3.save() 
+        exp3._save() 
     
         assert Experiment.list() == [exp1, exp2, exp3]
         assert os.path.exists(DATA_DIR)
@@ -214,7 +213,7 @@ class TestExperiment:
                     ident=ident, 
                     description=f"test{idx}"
                 )
-                exp.save() 
+                exp._save() 
                 raise RuntimeError(f"Did not raise: \"{ident}\"") 
             except AssertionError:
                 pass
@@ -271,7 +270,7 @@ class TestExperiment:
                 commit_hash="hello", 
                 branch="g", 
                 commit_message="h"
-            ).save() 
+            )._save() 
             raise RuntimeError 
         except AssertionError:
             pass
@@ -286,7 +285,7 @@ class TestExperiment:
                 commit_hash="000000000000000000000000000000000000000", 
                 branch="g", 
                 commit_message="h"
-            ).save()
+            )._save()
             raise RuntimeError() 
         except AssertionError:
             pass 
@@ -304,8 +303,8 @@ class TestExperiment:
         exp1 = Experiment(name="a", ident="foo", description="a")
         exp2 = Experiment(name="b", ident="foo", description="b")
         
-        exp1.save()
-        exp2.save()  # No error  
+        exp1._save()
+        exp2._save()  # No error  
     
     
     def test_duplicate_experiment_bad(self: "TestExperiment") -> None:
@@ -350,10 +349,10 @@ class TestExperiment:
             commit_message="h"
         )
 
-        exp1.save()
-        exp2.save()
+        exp1._save()
+        exp2._save()
         try:
-            exp3.save()
+            exp3._save()
             raise RuntimeError() 
         except ValueError:
             pass
@@ -369,7 +368,7 @@ class TestExperiment:
         
         exp = Experiment(name="a", ident="b", description="c")
         for i in range(100):
-            exp.save() 
+            exp._save() 
 
         assert len(Experiment.list()) == 1 
 
@@ -385,7 +384,7 @@ class TestExperiment:
         assert not os.path.exists(DATA_DIR)
 
         exp = Experiment(name="a", ident="unique_identifier", description="c")
-        exp.save() 
+        exp._save() 
         assert os.path.exists(DATA_DIR)
         assert os.path.exists(f"{DATA_DIR}/index.json") 
         
@@ -411,7 +410,7 @@ class TestExperiment:
         assert not os.path.exists(DATA_DIR)
 
         exp = Experiment(name="a", ident="b", description="c")
-        exp.save()
+        exp._save()
         
         exps = Experiment.list()
         assert len(exps) == 1 
@@ -426,9 +425,12 @@ class TestExperiment:
         Modifying an experiment should *not* change its creation timestamp, 
         but *should* change its modified timestamp. 
         """
+        
+        os.environ["RESEARCH_PATH"] = DATA_DIR
+        assert not os.path.exists(DATA_DIR)
 
         exp = Experiment(name="a", ident="foo", description="c") 
-        exp.save()
+        exp._save()
 
         created_timestamp = exp.created_timestamp 
         modified_timestamp = exp.modified_timestamp 
@@ -439,7 +441,7 @@ class TestExperiment:
         # Different experiment object but same identifier with same git commit 
         # details means it represents the same experiment.
         exp = Experiment(name="x", ident="foo", description="y") 
-        exp.save()
+        exp._save()
 
         assert created_timestamp == exp.created_timestamp
         assert modified_timestamp != exp.modified_timestamp 
@@ -458,10 +460,35 @@ class TestArtifact:
         os.environ["RESEARCH_PATH"] = DATA_DIR
         assert not os.path.exists(DATA_DIR)
 
-        exp = Experiment(name="a", ident="b", description="c")
-        exp.save() 
+        exp = Experiment(name="a", ident="foo", description="c")
+        art = Artifact(experiment=exp, ident="art0", props={"x": 1}) 
+        exp.add_artifact(art) 
         assert os.path.exists(DATA_DIR)
-        assert os.path.exists(f"{DATA_DIR}/index.json") 
+        assert os.path.exists(f"{DATA_DIR}/index.json")
+        assert os.path.exists(f"{DATA_DIR}/exp-foo/index.json") 
+        
+        with open(f"{DATA_DIR}/exp-foo/index.json", "r") as f:
+            # This file should contain a list of artifacts. None of the 
+            # fields in experiments should be None. 
+            data = json.load(f) 
+            assert isinstance(data, dict)
+            assert all(
+                k in data.keys()
+                for k in ("experiment-ident", "artifacts")
+            )
+            assert data["experiment-ident"] == "foo"
+            assert isinstance(data["artifacts"], list) 
+            assert len(data["artifacts"]) == 1 
+            assert isinstance(data["artifacts"][0], dict)
+            assert all(
+                (
+                    k in data["artifacts"][0].keys() and 
+                    data["artifacts"][0][k] is not None 
+                )
+                for k in ("artifact-ident", "properties", "timestamp")
+            )
+            assert data["artifacts"][0]["artifact-ident"] == "art0" 
+            assert data["artifacts"][0]["properties"] == {"x": 1} 
 
 
     def test_no_exist(self: "TestArtifact") -> None: 
@@ -477,11 +504,10 @@ class TestArtifact:
         assert not art.exists() 
 
         # Artifact must be explicitly added. 
-        exp.save()
+        exp._save()
         assert not art.exists() 
 
         exp.add_artifact(art)
-        exp.save() 
         assert art.exists() 
 
 
@@ -490,6 +516,9 @@ class TestArtifact:
         Artifacts are identified by their identifier, so there cannot be 
         duplicates. 
         """
+        
+        os.environ["RESEARCH_PATH"] = DATA_DIR
+        assert not os.path.exists(DATA_DIR)
         
         exp = Experiment(name="a", ident="b", description="c")
         art = Artifact(experiment=exp, ident="unique", props={"x": 1})
@@ -511,5 +540,73 @@ class TestArtifact:
         Ensures that saving artifacts to one experiment will not show up in 
         another experiment. 
         """
-    
-        pass
+
+        os.environ["RESEARCH_PATH"] = DATA_DIR 
+        
+        exp1 = Experiment(name="a", ident="foo", description="b")
+        art1 = Artifact(experiment=exp1, ident="art1", props={"x": 1})
+        exp1.add_artifact(art1)
+
+        exp2 = Experiment(name="a", ident="bar", description="b")
+        art2 = Artifact(experiment=exp2, ident="art2", props={"x": 1})
+        exp2.add_artifact(art2)
+
+        exps = Experiment.list()
+        for exp in exps:    
+            assert len(exp.artifacts) == 1
+            if exp.ident == "foo":
+                assert exp == exp1 
+                assert exp.artifacts[0] == art1 
+            elif exp.ident == "bar":
+                assert exp == exp2
+                assert exp.artifacts[0] == art2 
+            else:
+                raise ValueError() 
+
+
+    def test_save_art_different_experiment(self: "TestArtifact") -> None:
+        """
+        We cannot save an artifact to an experiment it doesn't belong to. 
+        """
+
+        os.environ["RESEARCH_PATH"] = DATA_DIR
+ 
+        exp1 = Experiment(name="a", ident="foo", description="b")
+        art1 = Artifact(experiment=exp1, ident="art1", props={"x": 1})
+        exp1.add_artifact(art1)
+
+        exp2 = Experiment(name="a", ident="bar", description="b")
+        art2 = Artifact(experiment=exp2, ident="art2", props={"x": 1})
+        exp2.add_artifact(art2)
+        
+        try:
+            exp1.add_artifact(art2)
+            raise RuntimeError()
+        except AssertionError:
+            pass 
+
+
+    def test_no_caching(self: "TestArtifact") -> None:
+        """
+        The result of Experiment.list() is not the same Experiment objects as
+        what was originally inserted. They are *functionally equivalent*, but
+        represent different objects. 
+        """
+
+        os.environ["RESEARCH_PATH"] = DATA_DIR
+ 
+        exp1 = Experiment(name="a", ident="foo", description="b")
+        art1 = Artifact(experiment=exp1, ident="art1", props={"x": 1})
+        exp1.add_artifact(art1)
+
+        exp2 = Experiment(name="a", ident="bar", description="b")
+        art2 = Artifact(experiment=exp2, ident="art2", props={"x": 1})
+        exp2.add_artifact(art2)
+
+        exps = Experiment.list() 
+        assert exp1 in exps 
+        assert exp2 in exps 
+        obtained_exp1 = next(e for e in exps if e == exp1) 
+        obtained_exp2 = next(e for e in exps if e == exp2)
+        assert exp1 is not obtained_exp1
+        assert exp2 is not obtained_exp2
