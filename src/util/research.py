@@ -325,11 +325,30 @@ class Experiment:
         artifacts = self.artifacts 
         if artifact is not None:
             assert artifact not in artifacts 
-            artifacts.append(artifact)  # Add new artifact 
+            
+            # Before adding the artifact, it must contain the same schema as
+            # the others. Compare it with the first artifact. "Schema" refers
+            # to the queryable keys in each dictionary; the values must also 
+            # be the same type (or None). 
+            def compare(obj1: Any, obj2: Any) -> None:
+                assert obj1 is None or obj2 is None or type(obj1) == type(obj2)
+                if isinstance(obj1, dict) and isinstance(obj2, dict):
+                    assert set(obj1.keys()) == set(obj2.keys()) 
+                    for key in obj1.keys():
+                        compare(obj1[key], obj2[key]) 
+            if len(artifacts) > 0:
+                compare(artifact.props, artifacts[0].props)
+
+            # Their structure matches, so add the new artifact. 
+            artifacts.append(artifact)
+
         experiment_data = {
             "experiment-ident": self.ident, 
             "artifacts": [
-                artifact._save(dname)
+                artifact.to_json(
+                    obj_save_dir=dname,  
+                    do_copy=True
+                ) 
                 for artifact in artifacts
             ]
         }
@@ -593,25 +612,6 @@ class Artifact:
             "timestamp": self.timestamp,
             "properties": serialize(self.props)
         }
-
-
-    def _save(self: "Artifact", save_basedir: str) -> Dict[str, Any]:
-        """
-        Saves an artifact to disk. Verifies all the parameters, too. Note that
-        we should *only* be saving things to an Experiment with the same git
-        hash as our current git hash; if they differ, it's possible our results 
-        are stale, so we should be creating a new Experiment instead. Returns
-        a serialized JSON dictionary which can be saved in the index file for
-        this experiment. 
-        """
-        
-        # Copies any paths to the base directory. 
-        # TODO
-        
-        return self.to_json(
-            obj_save_dir=save_basedir, 
-            do_copy=True
-        ) 
 
 
     def __eq__(self: "Artifact", other: "Artifact") -> bool:

@@ -811,5 +811,55 @@ class TestArtifact:
         try:
             exp.add_artifact(art)
             raise ValueError() 
-        except:
+        except AssertionError:
+            pass
+    
+
+    def test_schema_wrong(self: "TestArtifact") -> None:
+        """
+        Tests that two artifacts having different schemas results in an error. 
+        """
+
+        os.environ["RESEARCH_PATH"] = DATA_DIR
+        exp = Experiment(name="a", ident="foo", description="b")
+        art1 = Artifact(
+            experiment=exp,
+            ident="art", 
+            props={"foo": 1}
+        )
+        art2 = Artifact(
+            experiment=exp,
+            ident="art", 
+            props={"bar": 1}
+        )
+        exp.add_artifact(art1)
+        try:
+            exp.add_artifact(art2)
+            raise RuntimeError()
+        except AssertionError:
+            pass 
+
+
+    def test_schema_type(self: "TestArtifact") -> None:
+        """
+        Tests that the schema also checks for the types of properties. 
+        """
+
+        os.environ["RESEARCH_PATH"] = DATA_DIR
+        exp = Experiment(name="a", ident="foo", description="b")
+        art1 = Artifact(
+            experiment=exp,
+            ident="art", 
+            props={"foo": 1}
+        )
+        art2 = Artifact(
+            experiment=exp,
+            ident="art", 
+            props={"foo": "bar"}
+        )
+        exp.add_artifact(art1)
+        try:
+            exp.add_artifact(art2)
+            raise RuntimeError()
+        except AssertionError:
             pass 
