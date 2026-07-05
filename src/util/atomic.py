@@ -2,12 +2,14 @@
 Various operations that must remain operational even for multiprocessing.
 """
 
+import json
 import os
 import pathlib
 import tempfile
+import threading
 import time
 
-from typing import Union
+from typing import Any, List, Optional, Tuple, Union
 
 
 class AtomicWriteFile:
@@ -116,6 +118,8 @@ class AtomicEdit:
         self.timeout = timeout + 0.01
 
     def __enter__(self: "AtomicEdit") -> "AtomicEdit":
+        assert not self.is_acquired
+
         def acquire() -> bool:
             # Returns True if we acquired the file, or False otherwise. First
             # determine if we should remove the lock.
@@ -147,6 +151,7 @@ class AtomicEdit:
 
     def __exit__(self: "AtomicEdit", exc_type, exc_val, exc_tb):
         assert os.path.exists(self.lock), self.lock
+        assert self.is_acquired
         os.rmdir(self.lock)
         self.is_acquired = False
 
@@ -170,3 +175,138 @@ class AtomicEdit:
         assert self.is_acquired
         with AtomicWriteFile(self.path, "w") as f:
             f.write(contents)
+
+
+class Queue:
+    """
+    An atomic queue implemented via an AtomicEdit object on a dummy file. The
+    file stores the state of the queue. This object works even when many
+    simultaneous subprocesses attempt to use it at the same time. This queue is
+    FIFO; for the initial data of length N provided to it, the first call to
+    "pop" will return the 0th index, and the first call to "push" will be the
+    Nth item removed.
+    """
+
+    def __init__(
+        self: "Queue",
+        init_data: Optional[List[Any]] = None,
+        path: str = "queue.json",
+        timeout: float = 10.0,
+    ) -> None:
+        """
+        Creates a new queue. The path should not be interacted with manually,
+        but it should only be used by Queues with a shared purpose (i.e., don't
+        make it point to a global area that other unrelated Queues may use). The
+        initial data must be JSON-serializable.
+        """
+
+        self.file = AtomicEdit(path, timeout=timeout)
+        self.pid = os.getpid()
+        self.tid = threading.get_ident()
+
+        # Write the contents to the file.
+        if init_data is not None:
+            self._setup(init_data)
+
+    def _setup(self: "Queue", content: List[Any]) -> None:
+        """
+        Sets up the file with the initial data.
+        """
+
+        assert isinstance(content, list)
+        data = {"pid": self.pid, "tid": self.tid, "data": content}
+        s = json.dumps(data)
+
+        if self.file.is_acquired:  # It may be acquired by us.
+            self.file.write_all(s)
+        else:
+            with self.file:
+                self.file.write_all(s)
+
+    def pop(self: "Queue", backoff: bool = True) -> Any:
+        """
+        Returns a single item from the queue and updates it to remove that item.
+        This operation blocks until data becomes available; if no data is
+        available at the time of being called, it spins.
+        """
+
+        def try_pop() -> Tuple[bool, Any]:
+            # Tries to get data from the file; on success, return (True, data),
+            # otherwise return (False, None).
+            with self.file:
+                if not os.path.exists(self.file.path):
+                    return (False, None)
+
+                content = self.file.read_all()
+                obj = json.loads(content)
+                assert all(k in obj.keys() for k in ("pid", "tid", "data"))
+                assert isinstance(obj["data"], list)
+                if len(obj["data"]) > 0:
+                    item = obj["data"].pop(0)
+                    self.file.write_all(json.dumps(obj))
+                    return (True, item)
+                else:
+                    return (False, None)
+
+        sleep_amount = 0.01
+        success, data = try_pop()
+        while not success:
+            time.sleep(sleep_amount)
+            if backoff:
+                sleep_amount = min(sleep_amount * 2, 1.0)
+            success, data = try_pop()
+
+        return data
+
+    def push(self: "Queue", item: Any) -> None:
+        """
+        Puts a single item into the queue and updates it.
+        """
+
+        with self.file:
+            # Does the file exist?
+            if not os.path.exists(self.file.path):
+                # It doesn't exist. This is special behavior; if we want to
+                # push to an empty file, interpret the file as containing an
+                # empty list. The next parts should succeed.
+                self._setup([])
+
+            content = self.file.read_all()
+            obj = json.loads(content)
+            assert all(k in obj.keys() for k in ("pid", "tid", "data"))
+            assert isinstance(obj["data"], list)
+            obj["data"].append(item)
+            self.file.write_all(json.dumps(obj))
+
+    def __len__(self: "Queue") -> int:
+        """
+        Returns the length of the queue.
+        """
+
+        with self.file:
+            content = self.file.read_all()
+            obj = json.loads(content)
+            assert all(k in obj.keys() for k in ("pid", "tid", "data"))
+            assert isinstance(obj["data"], list)
+            return len(obj["data"])
+
+    def delete(self: "Queue", force=False) -> None:
+        """
+        This object uses a metadata file, so this function removes that file.
+        If "force" is not set, then *only* the process/thread which created this
+        queue is allowed to delete it; if "force" is set, then anyone can remove
+        it.
+        """
+
+        # Check if the file wasn't already deleted.
+        if os.path.exists(self.file.path):
+            with self.file:
+                content = self.file.read_all()
+                obj = json.loads(content)
+                assert all(k in obj.keys() for k in ("pid", "tid", "data"))
+
+                if force or (
+                    os.getpid() == obj["pid"]
+                    and threading.get_ident() == obj["tid"]
+                ):
+                    os.remove(self.file.path)
