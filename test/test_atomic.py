@@ -11,7 +11,7 @@ import tempfile
 import threading
 import time
 
-from util.atomic import AtomicEdit, Queue
+from util.atomic import AtomicEdit, AtomicQueue
 
 FILE_PATH = f"{os.path.dirname(os.path.abspath(__file__))}/test-lock-file.txt"
 FILE2_PATH = f"{os.path.dirname(os.path.abspath(__file__))}/test-lock-file2.txt"
@@ -275,21 +275,21 @@ class TestAtomicEdit:
             assert time.time() - start_time < 15
 
 
-class TestAtomicQueue:
-    def test_basic(self: "TestAtomicQueue"):
-        q = Queue(["hello", "world"], path=FILE_PATH)
+class TestAtomicAtomicQueue:
+    def test_basic(self: "TestAtomicAtomicQueue"):
+        q = AtomicQueue(["hello", "world"], path=FILE_PATH)
         assert q.pop() == "hello"
         q.push("foo")
         assert q.pop() == "world"
         assert q.pop() == "foo"
 
-    def test_wait_empty(self: "TestAtomicQueue"):
+    def test_wait_empty(self: "TestAtomicAtomicQueue"):
         """
         Waiting on an empty queue.
         """
 
         assert not os.path.exists(FILE_PATH)
-        q = Queue(path=FILE_PATH)
+        q = AtomicQueue(path=FILE_PATH)
 
         t = threading.Thread(target=lambda: q.pop())
         t.start()
@@ -304,27 +304,27 @@ class TestAtomicQueue:
         q.push("bar")
         assert q.pop() == "bar"
 
-    def test_push_empty(self: "TestAtomicQueue"):
+    def test_push_empty(self: "TestAtomicAtomicQueue"):
         """
         It should be fine for us to push something to an empty queue.
         """
 
-        q = Queue(path=FILE_PATH)
+        q = AtomicQueue(path=FILE_PATH)
         q.push("hello")
         assert q.pop() == "hello"
 
     class TestMultiprocess:
         def worker():
-            in_q = Queue(path=FILE_PATH)
+            in_q = AtomicQueue(path=FILE_PATH)
             value = in_q.pop()
-            out_q = Queue(path=FILE2_PATH)
+            out_q = AtomicQueue(path=FILE2_PATH)
             out_q.push(value + 1000000)
 
         def test_multiprocess(self: "TestMultiprocess") -> None:
             # Set up the queue.
             count = 100
-            in_q = Queue(list(range(count)), path=FILE_PATH)
-            out_q = Queue([], path=FILE2_PATH)
+            in_q = AtomicQueue(list(range(count)), path=FILE_PATH)
+            out_q = AtomicQueue([], path=FILE2_PATH)
 
             # Launch each subprocess.
             start_time = time.time()
@@ -333,7 +333,7 @@ class TestAtomicQueue:
                     [
                         sys.executable,
                         __file__,
-                        "TestAtomicQueue.TestMultiprocess",
+                        "TestAtomicAtomicQueue.TestMultiprocess",
                     ],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
@@ -369,7 +369,7 @@ if __name__ == "__main__":
     if len(sys.argv) == 2:
         if sys.argv[1] == "worker":
             TestAtomicEdit.TestMultiprocess.worker()
-        elif sys.argv[1] == "TestAtomicQueue.TestMultiprocess":
-            TestAtomicQueue.TestMultiprocess.worker()
+        elif sys.argv[1] == "TestAtomicAtomicQueue.TestMultiprocess":
+            TestAtomicAtomicQueue.TestMultiprocess.worker()
         else:
             raise ValueError(repr(sys.argv))

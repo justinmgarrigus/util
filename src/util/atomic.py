@@ -177,7 +177,7 @@ class AtomicEdit:
             f.write(contents)
 
 
-class Queue:
+class AtomicQueue:
     """
     An atomic queue implemented via an AtomicEdit object on a dummy file. The
     file stores the state of the queue. This object works even when many
@@ -188,16 +188,16 @@ class Queue:
     """
 
     def __init__(
-        self: "Queue",
+        self: "AtomicQueue",
         init_data: Optional[List[Any]] = None,
         path: str = "queue.json",
         timeout: float = 10.0,
     ) -> None:
         """
         Creates a new queue. The path should not be interacted with manually,
-        but it should only be used by Queues with a shared purpose (i.e., don't
-        make it point to a global area that other unrelated Queues may use). The
-        initial data must be JSON-serializable.
+        but it should only be used by AtomicQueues with a shared purpose (i.e., 
+        don't make it point to a global area that other unrelated AtomicQueues 
+        may use). The initial data must be JSON-serializable.
         """
 
         self.file = AtomicEdit(path, timeout=timeout)
@@ -208,7 +208,7 @@ class Queue:
         if init_data is not None:
             self._setup(init_data)
 
-    def _setup(self: "Queue", content: List[Any]) -> None:
+    def _setup(self: "AtomicQueue", content: List[Any]) -> None:
         """
         Sets up the file with the initial data.
         """
@@ -223,7 +223,7 @@ class Queue:
             with self.file:
                 self.file.write_all(s)
 
-    def pop(self: "Queue", backoff: bool = True) -> Any:
+    def pop(self: "AtomicQueue", backoff: bool = True) -> Any:
         """
         Returns a single item from the queue and updates it to remove that item.
         This operation blocks until data becomes available; if no data is
@@ -258,7 +258,7 @@ class Queue:
 
         return data
 
-    def push(self: "Queue", item: Any) -> None:
+    def push(self: "AtomicQueue", item: Any) -> None:
         """
         Puts a single item into the queue and updates it.
         """
@@ -278,7 +278,7 @@ class Queue:
             obj["data"].append(item)
             self.file.write_all(json.dumps(obj))
 
-    def __len__(self: "Queue") -> int:
+    def __len__(self: "AtomicQueue") -> int:
         """
         Returns the length of the queue.
         """
@@ -290,7 +290,7 @@ class Queue:
             assert isinstance(obj["data"], list)
             return len(obj["data"])
 
-    def delete(self: "Queue", force=False) -> None:
+    def delete(self: "AtomicQueue", force=False) -> None:
         """
         This object uses a metadata file, so this function removes that file.
         If "force" is not set, then *only* the process/thread which created this
