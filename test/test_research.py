@@ -9,7 +9,7 @@ import pytest
 import shutil
 import time
 
-from util.etc import AtomicFile
+from util.atomic import AtomicWriteFile
 from util.git import get_git_properties
 from util.research import Artifact, Experiment
 
@@ -60,9 +60,9 @@ class TestEtc:
         """
 
         os.makedirs(DATA_DIR)
-        with AtomicFile(f"{DATA_DIR}/test.txt", "w") as f:
+        with AtomicWriteFile(f"{DATA_DIR}/test.txt", "w") as f:
             f.write("hello")
-        with AtomicFile(f"{DATA_DIR}/test.txt", "r") as f:
+        with open(f"{DATA_DIR}/test.txt", "r") as f:
             text = f.read()
         assert text == "hello"
 

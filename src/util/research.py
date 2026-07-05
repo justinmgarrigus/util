@@ -13,7 +13,7 @@ import re
 import shutil
 
 from typing import Any, Dict, List, Optional, Union
-from util.etc import AtomicFile
+from util.atomic import AtomicWriteFile
 from util.git import get_git_properties
 from util.secrets import get as get_secrets
 
@@ -47,7 +47,7 @@ class Experiment:
             try:
                 basedir = get_secrets().get("RESEARCH_PATH", None)
             except:
-                basedir = None 
+                basedir = None
 
             if basedir is None:
                 raise ValueError(
@@ -76,9 +76,9 @@ class Experiment:
 
         index_path = f"{basedir}/index.json"
         if not os.path.exists(index_path):
-            with AtomicFile(index_path, "w") as f:
+            with AtomicWriteFile(index_path, "w") as f:
                 f.write("[]")
-        with AtomicFile(index_path, "r") as f:
+        with open(index_path, "r") as f:
             index_json = json.load(f)
 
         # Convert JSON to Experiment objects.
@@ -113,7 +113,7 @@ class Experiment:
             for exp in index
         ]
 
-        with AtomicFile(index_path, "w") as f:
+        with AtomicWriteFile(index_path, "w") as f:
             json.dump(index_json, f)
 
     def __init__(
@@ -186,7 +186,7 @@ class Experiment:
             "index.json"
         )
         if os.path.exists(path):
-            with AtomicFile(path, "r") as f:
+            with open(path, "r") as f:
                 data = json.load(f)
             assert all(
                 key in data.keys() for key in ("experiment-ident", "artifacts")
@@ -286,7 +286,7 @@ class Experiment:
             ],
         }
         index_path = f"{dname}/index.json"
-        with AtomicFile(index_path, "w") as f:
+        with AtomicWriteFile(index_path, "w") as f:
             json.dump(experiment_data, f)
 
     def add_artifact(self: "Experiment", artifact: "Artifact") -> None:
