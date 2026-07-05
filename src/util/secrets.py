@@ -17,7 +17,9 @@ def get():
 
     path = os.environ.get("UTIL_SECRETS_PATH", f"{get_git_root()}/secrets.yaml")
     if not os.path.exists(path):
-        raise FileNotFoundError(f'No secrets.yaml file was provided at "{path}".')
+        raise FileNotFoundError(
+            f'No secrets.yaml file was provided at "{path}".'
+        )
 
     # Ensure the file has the correct permissions.
     mode = stat.S_IMODE(os.stat(path).st_mode)

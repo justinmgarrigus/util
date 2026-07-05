@@ -177,18 +177,25 @@ class Experiment:
         """
 
         git_hash = self.commit_hash[:8]
-        path = f"{Experiment._get_basedir()}/exp-{self.ident}-{git_hash}/index.json"
+        path = (
+            f"{Experiment._get_basedir()}/exp-{self.ident}-{git_hash}/"
+            "index.json"
+        )
         if os.path.exists(path):
             with AtomicFile(path, "r") as f:
                 data = json.load(f)
-            assert all(key in data.keys() for key in ("experiment-ident", "artifacts"))
+            assert all(
+                key in data.keys() for key in ("experiment-ident", "artifacts")
+            )
             assert data["experiment-ident"] == self.ident
 
             return [Artifact.from_json(art, self) for art in data["artifacts"]]
         else:
             return []
 
-    def _save(self: "Experiment", artifact: Optional["Artifact"] = None) -> None:
+    def _save(
+        self: "Experiment", artifact: Optional["Artifact"] = None
+    ) -> None:
         """
         Saves an experiment to disk. Verifies all the parameters, too. Note
         this should *not* be called outside of this file (but it can be called
@@ -310,12 +317,17 @@ class Experiment:
         return any(artifact_ident == art.ident for art in self.artifacts)
 
     def __str__(self: "Experiment") -> str:
-        return f"Experiment(ident={self.ident}, len(artifacts)={len(self.artifacts)})"
+        return (
+            f"Experiment(ident={self.ident}, "
+            f"len(artifacts)={len(self.artifacts)})"
+        )
 
     def __repr__(self: "Experiment") -> str:
         return str(self)
 
-    def __eq__(self: "Experiment", other: Union["Experiment", Dict, Any]) -> bool:
+    def __eq__(
+        self: "Experiment", other: Union["Experiment", Dict, Any]
+    ) -> bool:
         """
         Returns True if the other object represents the same kind of Experiment
         as us with the same data. Raises an error if the other experiment is
@@ -383,21 +395,23 @@ class Artifact:
             if isinstance(value, str) and os.path.exists(value):
                 raise ValueError(
                     (
-                        f'Error: tried to create an artifact "{ident}", but one '
-                        f'of the properties (key = "{key}", value = '
+                        f'Error: tried to create an artifact "{ident}", but '
+                        f'one of the properties (key = "{key}", value = '
                         f'"{value}") is a string and represents a valid path. '
-                        "This is ambiguous since we do not know if we should copy "
-                        "that path to the destination. To be explicit, either "
-                        "implement precautions so it doesn't equal a path or turn "
-                        "it into a pathlib.Path object to resolve this ambiguity "
-                        "and enable copying."
+                        "This is ambiguous since we do not know if we should "
+                        "copy that path to the destination. To be explicit, "
+                        "either implement precautions so it doesn't equal a "
+                        "path or turn it into a pathlib.Path object to resolve "
+                        "this ambiguity and enable copying."
                     )
                 )
 
         self.experiment = experiment
         self.ident = ident
         self.props = props
-        self.timestamp = timestamp if timestamp is not None else Experiment.timestamp()
+        self.timestamp = (
+            timestamp if timestamp is not None else Experiment.timestamp()
+        )
 
     def exists(self: "Artifact") -> bool:
         """
@@ -417,7 +431,8 @@ class Artifact:
         """
 
         assert all(
-            key in obj.keys() for key in ("artifact-ident", "timestamp", "properties")
+            key in obj.keys()
+            for key in ("artifact-ident", "timestamp", "properties")
         )
 
         # When we load the JSON properties, auto-cast any strings which are
@@ -478,7 +493,8 @@ class Artifact:
                         path = f"{base}/{name}"
                         if os.path.exists(path):
                             raise FileExistsError(
-                                f'Cannot copy file; path "{path}" already exists.'
+                                f'Cannot copy file; path "{path}" already '
+                                "exists."
                             )
 
                         # Copy it. Works for files or directories.

@@ -491,7 +491,9 @@ class TestArtifact:
             # fields in experiments should be None.
             data = json.load(f)
             assert isinstance(data, dict)
-            assert all(k in data.keys() for k in ("experiment-ident", "artifacts"))
+            assert all(
+                k in data.keys() for k in ("experiment-ident", "artifacts")
+            )
             assert data["experiment-ident"] == "foo"
             assert isinstance(data["artifacts"], list)
             assert len(data["artifacts"]) == 1
@@ -690,7 +692,10 @@ class TestArtifact:
         stored_exp = Experiment.list()
         art = stored_exp[0].artifacts[0]
         assert all(
-            (f"data-{idx}" in art.props and os.path.exists(art.props[f"data-{idx}"]))
+            (
+                f"data-{idx}" in art.props
+                and os.path.exists(art.props[f"data-{idx}"])
+            )
             for idx in range(3)
         )
         for idx in range(3):
@@ -726,7 +731,9 @@ class TestArtifact:
             exp = next(exp for exp in stored_exps if exp.ident == f"foo{idx}")
             art = exp.artifacts[0]
             with open(art.props["fname"], "r") as f:
-                assert f.read() == f"test_copy_multiple_files_per_artifact {idx}"
+                assert (
+                    f.read() == f"test_copy_multiple_files_per_artifact {idx}"
+                )
 
     def test_copy_directory(self: "TestArtifact") -> None:
         """
@@ -743,7 +750,9 @@ class TestArtifact:
                 f.write(f"test_copy_directory {idx}")
 
         art = Artifact(
-            experiment=exp, ident="art", props={"dname": pathlib.Path(MEDIA_DIR)}
+            experiment=exp,
+            ident="art",
+            props={"dname": pathlib.Path(MEDIA_DIR)},
         )
         exp.add_artifact(art)
 
@@ -754,7 +763,9 @@ class TestArtifact:
         art = stored_exp[0].artifacts[0]
         assert "dname" in art.props.keys()
         git_hash = get_git_properties()["commit_hash"][:8]
-        path = f"{DATA_DIR}/exp-foo-{git_hash}/art/{os.path.basename(MEDIA_DIR)}"
+        path = (
+            f"{DATA_DIR}/exp-foo-{git_hash}/art/{os.path.basename(MEDIA_DIR)}"
+        )
         assert str(art.props["dname"]) == path
         assert os.path.exists(path)
         for idx in range(3):

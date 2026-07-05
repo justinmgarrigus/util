@@ -42,7 +42,10 @@ class AtomicFile:
             return self._tmp
         else:
             self._tmp = tempfile.NamedTemporaryFile(
-                mode=self.mode, delete=False, dir=self.path.parent, **self.kwargs
+                mode=self.mode,
+                delete=False,
+                dir=self.path.parent,
+                **self.kwargs,
             )
             self._tmp_name = self._tmp.name
             return self._tmp

@@ -41,7 +41,7 @@ uv run pytest
 After contributing code, lint your code and re-run the test cases:
 
 ```bash
-uv run ruff check --fix
 uv run ruff format 
+uv run ruff check --fix
 uv run pytest 
 ```
