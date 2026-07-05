@@ -35,3 +35,13 @@ uv run pytest
 * `TELEGRAM_CHAT_ID`: the chat identifier for a Telegram bot.
 * `TELEGRAM_BOT_TOKEN`: the token for a Telegram bot. 
 * `RESEARCH_PATH`: base directory to where experiments/artifacts should be stored. 
+
+## Contributing
+
+After contributing code, lint your code and re-run the test cases:
+
+```bash
+uv run ruff check --fix
+uv run ruff format 
+uv run pytest 
+```
