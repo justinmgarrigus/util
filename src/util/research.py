@@ -11,8 +11,10 @@ import os
 import pathlib 
 import re
 import shutil 
+import tempfile 
 
 from typing import Any, Dict, List, Optional, Union
+from util.etc import AtomicFile 
 from util.git import get_git_properties, get_git_root 
 from util.secrets import get as get_secrets 
 
@@ -71,9 +73,9 @@ class Experiment:
 
         index_path = f"{basedir}/index.json"
         if not os.path.exists(index_path): 
-            with open(index_path, "w") as f: 
+            with AtomicFile(index_path, "w") as f:
                 f.write("[]")
-        with open(index_path, "r") as f:
+        with AtomicFile(index_path, "r") as f:
             index_json = json.load(f) 
 
         # Convert JSON to Experiment objects.
@@ -109,7 +111,7 @@ class Experiment:
             for exp in index 
         ]
 
-        with open(index_path, "w") as f:
+        with AtomicFile(index_path, "w") as f:
             json.dump(index_json, f) 
 
 
@@ -190,7 +192,7 @@ class Experiment:
             f"exp-{self.ident}-{git_hash}/index.json"
         )
         if os.path.exists(path):
-            with open(path, "r") as f:
+            with AtomicFile(path, "r") as f:
                 data = json.load(f) 
             assert all(key in data.keys() for key in ("experiment-ident", 
                 "artifacts"))
@@ -299,38 +301,8 @@ class Experiment:
             ]
         }
         index_path = f"{dname}/index.json"
-        with open(index_path, "w") as f: 
+        with AtomicFile(index_path, "w") as f: 
             json.dump(experiment_data, f) 
-
-
-    def _load_artifacts(self: "Experiment") -> List["Artifact"]: 
-        """
-        A given experiment contains its own index of the artifacts it contains.
-        The location of this index is the same as the research base directory, 
-        and the name of this index is our "ident". This returns the collection
-        of artifacts for us.
-        """
-
-        basedir = Experiment._get_basedir()  
-        assert os.path.exists(basedir), basedir
-        git_hash = self.commit_hash[:8]
-        exp_index = f"{basedir}/exp-{self.ident}-{git_hash}/index.json"
-        
-        if os.path.exists(exp_index):
-            with open(exp_index, "r") as f: 
-                artifacts_json = json.load(f)
-            
-            assert (
-                key in artifacts_json 
-                for key in ["experiment-ident", "artifacts"]
-            )
-            return [
-                Artifact.from_json(obj, self)
-                for obj in artifacts_json["artifacts"]
-            ]
-        else:
-            # No artifacts exist yet. 
-            return []
 
 
     def add_artifact(self: "Experiment", artifact: "Artifact") -> None:
@@ -354,6 +326,19 @@ class Experiment:
                 assert artifact.experiment == self
             assert not artifact.exists()
             self._save(artifact)
+
+
+    def exists(self: "Experiment", artifact_ident: str) -> bool:
+        """
+        Returns True if we contain the given artifact identifier, False 
+        otherwise. This can be used to determine if an artifact already exists
+        without actually creating the artifact object.
+        """
+
+        return any(
+            artifact_ident == art.ident
+            for art in self.artifacts
+        )
 
 
     def __str__(self: "Experiment") -> str:
@@ -452,12 +437,8 @@ class Artifact:
         This can be used to determine if we can skip an artifact-collection due
         to it already being collected.
         """
-
-        artifacts = self.experiment._load_artifacts()
-        return any(
-            self.ident == art.ident
-            for art in artifacts
-        )
+        
+        return self.experiment.exists(self.ident) 
     
 
     @classmethod

@@ -11,6 +11,7 @@ import sys
 import tempfile
 import time 
 
+from util.etc import AtomicFile
 from util.git import get_git_properties, get_git_root 
 from util.research import Artifact, Experiment
 
@@ -48,6 +49,24 @@ def test_setup_teardown():
         os.remove(SECRETS_YAML_LOC)
     if os.path.exists(MEDIA_DIR):
         shutil.rmtree(MEDIA_DIR)
+
+
+class TestEtc:
+    """
+    Tests miscellaneous functionality. 
+    """
+
+    def test_atomic_file(self: "TestEtc") -> None:
+        """
+        Ensures the atomic file works the same as a regular file.
+        """
+
+        os.makedirs(DATA_DIR)
+        with AtomicFile(f"{DATA_DIR}/test.txt", "w") as f:
+            f.write("hello")
+        with AtomicFile(f"{DATA_DIR}/test.txt", "r") as f:
+            text = f.read() 
+        assert text == "hello"
 
 
 class TestDirectoryConstruction:
@@ -539,10 +558,18 @@ class TestArtifact:
         
         exp = Experiment(name="a", ident="b", description="c")
         art = Artifact(experiment=exp, ident="unique", props={"x": 1})
+        assert not exp.exists(art.ident)
         exp.add_artifact(art) 
 
-        # Merely calling "add_artifact" should be barred, even before we save 
-        # it.
+        # First, saving the same instance should result in an error. 
+        assert art.exists()
+        try:
+            exp.add_artifact(art)
+            raise ValueError
+        except AssertionError:
+            pass
+
+        # Second, a different instance with the same data results in an error. 
         art_dup = Artifact(experiment=exp, ident="unique", props={"x": 1})
         assert art_dup.exists()   
         try:
