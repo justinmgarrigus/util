@@ -44,7 +44,11 @@ class Experiment:
         # session.
         basedir = os.environ.get("RESEARCH_PATH", None)
         if basedir is None:
-            basedir = get_secrets().get("RESEARCH_PATH")
+            try:
+                basedir = get_secrets().get("RESEARCH_PATH", None)
+            except:
+                basedir = None 
+
             if basedir is None:
                 raise ValueError(
                     (

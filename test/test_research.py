@@ -132,7 +132,7 @@ class TestDirectoryConstruction:
         try:
             exp._save()
             raise RuntimeError()
-        except FileNotFoundError:
+        except ValueError:
             pass
 
     def test_malformed_path(self: "TestDirectoryConstruction") -> None:
@@ -163,7 +163,7 @@ class TestDirectoryConstruction:
         try:
             exp._save()
             raise RuntimeError()
-        except AssertionError:
+        except ValueError:
             pass
 
     def test_path_not_cached(self: "TestDirectoryConstruction") -> None:
