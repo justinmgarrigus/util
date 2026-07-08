@@ -195,8 +195,8 @@ class AtomicQueue:
     ) -> None:
         """
         Creates a new queue. The path should not be interacted with manually,
-        but it should only be used by AtomicQueues with a shared purpose (i.e., 
-        don't make it point to a global area that other unrelated AtomicQueues 
+        but it should only be used by AtomicQueues with a shared purpose (i.e.,
+        don't make it point to a global area that other unrelated AtomicQueues
         may use). The initial data must be JSON-serializable.
         """
 

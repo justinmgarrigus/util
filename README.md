@@ -28,6 +28,8 @@ In your `.bashrc`, add `source activate.csh`. Usage of these utility scripts are
 uv run pytest 
 ```
 
+You may add this to your own projects with `uv add "git+ssh://git@github.com/justinmgarrigus/util.git@main"`. If this repo updates and you want to sync it again, run `uv sync --upgrade-package util`. 
+
 ## Secrets
 
 *Secrets* may be provided in a "secrets.yaml" file at the root of this project (if you create this file, do not commit it), or its path may be provided with the `UTIL_SECRETS_PATH` environment variable. Secrets include the following:
