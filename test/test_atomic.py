@@ -315,31 +315,31 @@ class TestAtomicQueue:
 
     def test_iterator(self: "TestAtomicQueue") -> None:
         """
-        A queue can act as an iterator. 
+        A queue can act as an iterator.
         """
 
         inp = ["hello", "world", "foo", "bar"]
-        q = AtomicQueue(inp, path=FILE_PATH) 
+        q = AtomicQueue(inp, path=FILE_PATH)
         items = [s for s in q]
-        assert items == inp 
+        assert items == inp
         assert len(q) == 4
-        assert next(iter(q)) == "hello" 
+        assert next(iter(q)) == "hello"
         assert next(iter(q)) == "hello"
 
     def test_iterator_acquire(self: "TestAtomicQueue") -> None:
         """
         A queue iterator must only acquire the queue once to read the entire
         contents of the file at once. This implies three things:
-        
-         1. While iterating, we can acquire the queue again without worrying 
+
+         1. While iterating, we can acquire the queue again without worrying
             about a double-acquire.
-         2. While iterating, someone else can acquire without us needing to 
+         2. While iterating, someone else can acquire without us needing to
             worry about deadlocking with them.
-         3. While iterating, if someone *does* acquire the queue, then their 
+         3. While iterating, if someone *does* acquire the queue, then their
             modifications do not affect our iteration contents.
         """
-            
-        inp = ["hello", "world", "foo", "bar"] 
+
+        inp = ["hello", "world", "foo", "bar"]
         q = AtomicQueue(inp, path=FILE_PATH)
         atomic_file = q.file  # Underlying storage method.
 
@@ -347,17 +347,17 @@ class TestAtomicQueue:
         it = iter(q)
         with atomic_file:
             assert next(it) == "hello"
-            
-            # Modify the file. If the iterator was still dependent on the file 
-            # state, then this could result in an error. 
-            atomic_file.write_all("abcdefg") 
-            
+
+            # Modify the file. If the iterator was still dependent on the file
+            # state, then this could result in an error.
+            atomic_file.write_all("abcdefg")
+
             assert next(it) == "world"
 
         # The above modification should render the file unusable.
         try:
             q.pop()
-            assert False  
+            assert False
         except ValueError:
             pass
 
