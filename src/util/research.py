@@ -491,8 +491,8 @@ class Artifact:
                         )
 
                     # Copy it. Works for files or directories.
-                    if not os.path.exists(obj): 
-                        raise FileNotFoundError(obj) 
+                    if not os.path.exists(obj):
+                        raise FileNotFoundError(obj)
 
                     if obj.is_file():
                         shutil.copy(obj, path)

@@ -785,22 +785,20 @@ class TestArtifact:
     def test_add_artifact_missing_file(self: "TestArtifact") -> None:
         """
         Adding an artifact which contains a missing file should give the correct
-        error. 
+        error.
         """
-        
+
         os.environ["RESEARCH_PATH"] = DATA_DIR
         exp = Experiment(name="a", ident="foo", description="b")
 
         art = Artifact(
-            experiment=exp, 
-            ident="art", 
-            props={"f": pathlib.Path("foo.txt")}
+            experiment=exp, ident="art", props={"f": pathlib.Path("foo.txt")}
         )
         try:
             exp.add_artifact(art)
             assert False
         except FileNotFoundError:
-            pass 
+            pass
 
     def test_copy_directory(self: "TestArtifact") -> None:
         """
