@@ -496,7 +496,7 @@ class Artifact:
                     elif obj.is_dir():
                         shutil.copytree(obj, path)
                     else:
-                        raise RuntimeError()
+                        raise RuntimeError(f'Unknown type of object "{obj}"')
                     return pathlib.Path(path)
                 else:
                     return obj
