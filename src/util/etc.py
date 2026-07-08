@@ -46,14 +46,18 @@ class Stub:
     def __setitem__(self: "Stub", key: str, value: Any) -> None:
         self._fail(f"setitem({key})")
 
-    def __bool__(self: "Stub") -> None:
-        self._fail("cast_bool")
-
     def __iter__(self: "Stub") -> None:
         self._fail("iter")
 
     def __len__(self: "Stub") -> None:
         self._fail("len")
+
+    def __bool__(self: "Stub") -> bool:
+        """
+        Returns False. This allows us to test for stub-ness.
+        """
+
+        return False
 
     def __repr__(self: "Stub") -> None:
         s = ", ".join(f"{key}: {value}" for key, value in self.attrs.items())

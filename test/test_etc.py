@@ -81,13 +81,6 @@ def test_stub_no_functionality():
     except RuntimeError:
         pass
 
-    # __bool__
-    try:
-        x = bool(s)
-        raise ValueError()
-    except RuntimeError:
-        pass
-
     # __iter__
     try:
         for _ in s:
@@ -102,3 +95,13 @@ def test_stub_no_functionality():
         raise ValueError()
     except RuntimeError:
         pass
+
+
+def test_stub_bool():
+    """
+    Stubs should be treated as False, so users can test for stub-ness.
+    """
+
+    assert bool(Stub()) is False
+    if Stub():
+        raise ValueError()
