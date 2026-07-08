@@ -278,12 +278,14 @@ class Experiment:
             # Their structure matches, so add the new artifact.
             artifacts.append(artifact)
 
+            # While we're here, we should copy whatever content they have into
+            # the target directory. We only do this for **new** artifacts.
+            artifact._copy_and_adjust(obj_save_dir=dname)
+
+        print("Running _save")
         experiment_data = {
             "experiment-ident": self.ident,
-            "artifacts": [
-                artifact.to_json(obj_save_dir=dname, do_copy=True)
-                for artifact in artifacts
-            ],
+            "artifacts": [artifact._to_json() for artifact in artifacts],
         }
         index_path = f"{dname}/index.json"
         with AtomicWriteFile(index_path, "w") as f:
@@ -460,24 +462,57 @@ class Artifact:
             timestamp=obj["timestamp"],
         )
 
-    def to_json(
-        self: "Artifact", do_copy: bool, obj_save_dir: Optional[str] = None
-    ) -> Dict[str, Any]:
+    def _copy_and_adjust(self: "Artifact", obj_save_dir: str) -> None:
         """
-        Turns us into a JSON representation. For any pathlib.Path object,
-        change its location so its pointed to obj_save_dir instead. If do_copy
-        is set, then this function performs the copying to the new location. We
-        raise an error if the destination already exists.
+        Copies any pathlib.Path object into obj_save_dir. If the destination
+        already exists, then raises an error. For each pathlib.Path object
+        within our properties, also change it so it points to the copied file
+        instead.
         """
 
-        if do_copy:
-            assert obj_save_dir is not None
-            assert os.path.exists(obj_save_dir)
+        assert os.path.exists(obj_save_dir), obj_save_dir
+
+        def copy_rec(obj: Any) -> Any:
+            # If any pathlib.Path object is found, copy it over.
+            if isinstance(obj, dict):
+                return {k: copy_rec(v) for k, v in obj.items()}
+            elif isinstance(obj, (list, tuple)):
+                return [copy_rec(o) for o in obj]
+            else:
+                if isinstance(obj, pathlib.Path):
+                    # Form the target location.
+                    name = obj.name
+                    base = f"{obj_save_dir}/{self.ident}"
+                    os.makedirs(base, exist_ok=True)
+                    path = f"{base}/{name}"
+                    if os.path.exists(path):
+                        raise FileExistsError(
+                            f'Cannot copy file; path "{path}" already exists.'
+                        )
+
+                    # Copy it. Works for files or directories.
+                    if obj.is_file():
+                        shutil.copy(obj, path)
+                    elif obj.is_dir():
+                        shutil.copytree(obj, path)
+                    else:
+                        raise RuntimeError()
+                    return pathlib.Path(path)
+                else:
+                    return obj
+
+        self.props = copy_rec(self.props)
+
+    def _to_json(self: "Artifact") -> Dict[str, Any]:
+        """
+        Turns us into a JSON representation.
+        """
 
         def serialize(obj: Any) -> Any:
             """
-            Construct a serializable representation of the properties. If any
-            paths exist, then copy them over.
+            Recursively checks that this object is serializable and returns a
+            serialized representation (with the only type changing being
+            pathlib.Path).
             """
 
             if isinstance(obj, dict):
@@ -485,35 +520,10 @@ class Artifact:
             elif isinstance(obj, (list, tuple)):
                 return [serialize(o) for o in obj]
             else:
-                if do_copy:
-                    assert obj is None or isinstance(
-                        obj, (int, str, float, pathlib.Path)
-                    )
-                    if isinstance(obj, pathlib.Path):
-                        # Form the target location.
-                        name = obj.name
-                        base = f"{obj_save_dir}/{self.ident}"
-                        os.makedirs(base, exist_ok=True)
-                        path = f"{base}/{name}"
-                        if os.path.exists(path):
-                            raise FileExistsError(
-                                f'Cannot copy file; path "{path}" already '
-                                "exists."
-                            )
-
-                        # Copy it. Works for files or directories.
-                        if obj.is_file():
-                            shutil.copy(obj, path)
-                        elif obj.is_dir():
-                            shutil.copytree(obj, path)
-                        else:
-                            raise RuntimeError()
-                        return path
-                    else:
-                        return obj
-                else:
-                    assert obj is None or isinstance(obj, (int, str, float))
-                    return obj
+                assert obj is None or isinstance(
+                    obj, (int, str, float, pathlib.Path)
+                ), type(obj)
+                return str(obj) if isinstance(obj, pathlib.Path) else obj
 
         return {
             "artifact-ident": self.ident,

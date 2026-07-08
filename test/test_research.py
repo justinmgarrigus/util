@@ -703,7 +703,9 @@ class TestArtifact:
             with open(new_path, "r") as f:
                 assert f.read() == f"test_copy_multiple_files {idx}"
 
-    def test_copy_multiple_files_per_artifact(self: "TestArtifact") -> None:
+    def test_copy_multiple_files_per_artifact_multiple_experiments(
+        self: "TestArtifact",
+    ) -> None:
         """
         Copies multiple files per artifact.
         """
@@ -712,14 +714,20 @@ class TestArtifact:
 
         assert not os.path.exists(MEDIA_DIR)
         os.makedirs(MEDIA_DIR)
-        for idx in range(3):
-            path = f"{MEDIA_DIR}/item-{idx}.md"
-            with open(path, "w") as f:
-                f.write(f"test_copy_multiple_files_per_artifact {idx}")
+        for i in range(3):
+            for j in range(3):
+                path = f"{MEDIA_DIR}/item-{i}-{j}.md"
+                with open(path, "w") as f:
+                    f.write(f"multiple arts multiple exps {i} {j}")
 
-            exp = Experiment(name="a", ident=f"foo{idx}", description="b")
+            exp = Experiment(name="a", ident=f"foo{i}", description="b")
             art = Artifact(
-                experiment=exp, ident="art", props={"fname": pathlib.Path(path)}
+                experiment=exp,
+                ident="art",
+                props={
+                    f"f{j}": pathlib.Path(f"{MEDIA_DIR}/item-{i}-{j}.md")
+                    for j in range(3)
+                },
             )
             exp.add_artifact(art)
 
@@ -727,13 +735,52 @@ class TestArtifact:
         shutil.rmtree(MEDIA_DIR)
 
         stored_exps = Experiment.list()
-        for idx in range(3):
-            exp = next(exp for exp in stored_exps if exp.ident == f"foo{idx}")
+        for i in range(3):
+            exp = next(exp for exp in stored_exps if exp.ident == f"foo{i}")
             art = exp.artifacts[0]
-            with open(art.props["fname"], "r") as f:
-                assert (
-                    f.read() == f"test_copy_multiple_files_per_artifact {idx}"
-                )
+            for j in range(3):
+                with open(art.props[f"f{j}"], "r") as f:
+                    assert f.read() == f"multiple arts multiple exps {i} {j}"
+
+    def test_copy_multiple_files_per_artifact_single_experiment(
+        self: "TestArtifact",
+    ) -> None:
+        """
+        In a single experiment, tests that copying multiple files per artifact
+        still works.
+        """
+
+        os.environ["RESEARCH_PATH"] = DATA_DIR
+
+        assert not os.path.exists(MEDIA_DIR)
+        os.makedirs(MEDIA_DIR)
+        exp = Experiment(name="a", ident=f"foo", description="b")
+        for i in range(3):
+            for j in range(3):
+                path = f"{MEDIA_DIR}/item-{i}-{j}.md"
+                with open(path, "w") as f:
+                    f.write(f"multiple arts same exp {i} {j}")
+
+            art = Artifact(
+                experiment=exp,
+                ident=f"art-{i}",
+                props={
+                    f"f{j}": pathlib.Path(f"{MEDIA_DIR}/item-{i}-{j}.md")
+                    for j in range(3)
+                },
+            )
+            exp.add_artifact(art)
+
+        # Delete original directory to confirm it's a copy.
+        shutil.rmtree(MEDIA_DIR)
+
+        assert len(Experiment.list()) == 1
+        exp = Experiment.list()[0]
+        for i in range(3):
+            art = exp.artifacts[i]
+            for j in range(3):
+                with open(art.props[f"f{j}"], "r") as f:
+                    assert f.read() == f"multiple arts same exp {i} {j}"
 
     def test_copy_directory(self: "TestArtifact") -> None:
         """
