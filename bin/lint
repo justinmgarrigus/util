@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# Lints the current directory. Automatically applies any relevant changes.
+
+echo "Linting files from \"$(pwd)\" ... " 
+uv run ruff format 
+uv run ruff check --fix
