@@ -9,7 +9,7 @@ import tempfile
 import threading
 import time
 
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, Iterator, List, Optional, Tuple, Union
 
 
 class AtomicWriteFile:
@@ -238,7 +238,10 @@ class AtomicQueue:
                     return (False, None)
 
                 content = self.file.read_all()
-                obj = json.loads(content)
+                try:
+                    obj = json.loads(content)
+                except ValueError:
+                    raise ValueError(f"File contents are no longer JSON") 
                 assert all(k in obj.keys() for k in ("pid", "tid", "data"))
                 assert isinstance(obj["data"], list)
                 if len(obj["data"]) > 0:
@@ -289,6 +292,24 @@ class AtomicQueue:
             assert all(k in obj.keys() for k in ("pid", "tid", "data"))
             assert isinstance(obj["data"], list)
             return len(obj["data"])
+
+    def __iter__(self) -> Iterator[Any]: 
+        """
+        Creates an iterator out of us. This iterator allows looping through each
+        item in the queue in standard insertion order. It does **not** modify 
+        itself. The underlying data is only acquired once with the entire 
+        contents being cached, and each subsequent access does not re-acquire. 
+        """
+
+        # Read all data from the queue.
+        with self.file:
+            content = self.file.read_all() 
+            obj = json.loads(content)
+            assert all(k in obj.keys() for k in ("pid", "tid", "data"))
+            assert isinstance(obj["data"], list)
+        
+        # We now have a list, so return the iterator of the list instead. 
+        return iter(obj["data"]) 
 
     def delete(self: "AtomicQueue", force=False) -> None:
         """

@@ -275,15 +275,15 @@ class TestAtomicEdit:
             assert time.time() - start_time < 15
 
 
-class TestAtomicAtomicQueue:
-    def test_basic(self: "TestAtomicAtomicQueue"):
+class TestAtomicQueue:
+    def test_basic(self: "TestAtomicQueue") -> None:
         q = AtomicQueue(["hello", "world"], path=FILE_PATH)
         assert q.pop() == "hello"
         q.push("foo")
         assert q.pop() == "world"
         assert q.pop() == "foo"
 
-    def test_wait_empty(self: "TestAtomicAtomicQueue"):
+    def test_wait_empty(self: "TestAtomicQueue") -> None:
         """
         Waiting on an empty queue.
         """
@@ -304,7 +304,7 @@ class TestAtomicAtomicQueue:
         q.push("bar")
         assert q.pop() == "bar"
 
-    def test_push_empty(self: "TestAtomicAtomicQueue"):
+    def test_push_empty(self: "TestAtomicQueue") -> None:
         """
         It should be fine for us to push something to an empty queue.
         """
@@ -313,8 +313,56 @@ class TestAtomicAtomicQueue:
         q.push("hello")
         assert q.pop() == "hello"
 
+    def test_iterator(self: "TestAtomicQueue") -> None:
+        """
+        A queue can act as an iterator. 
+        """
+
+        inp = ["hello", "world", "foo", "bar"]
+        q = AtomicQueue(inp, path=FILE_PATH) 
+        items = [s for s in q]
+        assert items == inp 
+        assert len(q) == 4
+        assert next(iter(q)) == "hello" 
+        assert next(iter(q)) == "hello"
+
+    def test_iterator_acquire(self: "TestAtomicQueue") -> None:
+        """
+        A queue iterator must only acquire the queue once to read the entire
+        contents of the file at once. This implies three things:
+        
+         1. While iterating, we can acquire the queue again without worrying 
+            about a double-acquire.
+         2. While iterating, someone else can acquire without us needing to 
+            worry about deadlocking with them.
+         3. While iterating, if someone *does* acquire the queue, then their 
+            modifications do not affect our iteration contents.
+        """
+            
+        inp = ["hello", "world", "foo", "bar"] 
+        q = AtomicQueue(inp, path=FILE_PATH)
+        atomic_file = q.file  # Underlying storage method.
+
+        # Acquire within iteration.
+        it = iter(q)
+        with atomic_file:
+            assert next(it) == "hello"
+            
+            # Modify the file. If the iterator was still dependent on the file 
+            # state, then this could result in an error. 
+            atomic_file.write_all("abcdefg") 
+            
+            assert next(it) == "world"
+
+        # The above modification should render the file unusable.
+        try:
+            q.pop()
+            assert False  
+        except ValueError:
+            pass
+
     class TestMultiprocess:
-        def worker():
+        def worker() -> None:
             in_q = AtomicQueue(path=FILE_PATH)
             value = in_q.pop()
             out_q = AtomicQueue(path=FILE2_PATH)
@@ -333,7 +381,7 @@ class TestAtomicAtomicQueue:
                     [
                         sys.executable,
                         __file__,
-                        "TestAtomicAtomicQueue.TestMultiprocess",
+                        "TestAtomicQueue.TestMultiprocess",
                     ],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
@@ -369,7 +417,7 @@ if __name__ == "__main__":
     if len(sys.argv) == 2:
         if sys.argv[1] == "worker":
             TestAtomicEdit.TestMultiprocess.worker()
-        elif sys.argv[1] == "TestAtomicAtomicQueue.TestMultiprocess":
-            TestAtomicAtomicQueue.TestMultiprocess.worker()
+        elif sys.argv[1] == "TestAtomicQueue.TestMultiprocess":
+            TestAtomicQueue.TestMultiprocess.worker()
         else:
             raise ValueError(repr(sys.argv))
