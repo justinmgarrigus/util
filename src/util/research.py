@@ -86,7 +86,7 @@ class Experiment:
         return index
 
     @classmethod
-    def _save_index(cls, index: List[Dict[str, str]]) -> None:
+    def _save_index(cls, index: List["Experiment"]) -> None:
         """
         Updates and saves the index file with the new experiments. After
         creating any Experiment objects, this must be run. (It can be run
@@ -249,13 +249,12 @@ class Experiment:
             self.modified_timestamp = Experiment.timestamp()
             index.append(self)
 
-        # Update the general index. The index contains metadata about each
-        # artifact, but not the artifacts themselves.
+        # Update the general index.
         Experiment._save_index(index)
 
-        # Update the experiment-specific index.
-        git_hash = self.commit_hash[:8]
-        dname = f"{Experiment._get_basedir()}/exp-{self.ident}-{git_hash}"
+        # Update the experiment-specific index. The index contains metadata
+        # about each artifact, but not the artifacts themselves.
+        dname = self.experiment_directory
         os.makedirs(dname, exist_ok=True)
         artifacts = self.artifacts
         if artifact is not None:
@@ -282,7 +281,6 @@ class Experiment:
             # the target directory. We only do this for **new** artifacts.
             artifact._copy_and_adjust(obj_save_dir=dname)
 
-        print("Running _save")
         experiment_data = {
             "experiment-ident": self.ident,
             "artifacts": [artifact._to_json() for artifact in artifacts],
@@ -290,6 +288,17 @@ class Experiment:
         index_path = f"{dname}/index.json"
         with AtomicWriteFile(index_path, "w") as f:
             json.dump(experiment_data, f)
+
+    @property
+    def experiment_directory(self: "Experiment") -> str:
+        """
+        Returns the path to the experiment directory. This may not exist (in the
+        case of new experiments, this represents where the experiment *would be*
+        if it actually existed.
+        """
+
+        git_hash = self.commit_hash[:8]
+        return f"{Experiment._get_basedir()}/exp-{self.ident}-{git_hash}"
 
     def add_artifact(self: "Experiment", artifact: "Artifact") -> None:
         """
@@ -369,6 +378,19 @@ class Experiment:
             return True
         else:
             return False
+
+    def delete(self: "Experiment") -> None:
+        """
+        Deletes an experiment and all of the artifacts it contains.
+        """
+
+        # Update the index.
+        experiments = [exp for exp in Experiment.list() if self != exp]
+        Experiment._save_index(experiments)
+
+        # Remove the experiment directory.
+        if os.path.exists(self.experiment_directory):
+            shutil.rmtree(self.experiment_directory)
 
 
 class Artifact:

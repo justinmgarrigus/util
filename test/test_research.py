@@ -464,6 +464,30 @@ class TestExperiment:
         assert created_timestamp == exp.created_timestamp
         assert modified_timestamp != exp.modified_timestamp
 
+    def test_remove(self: "TestExperiment") -> None:
+        """
+        We should be able to remove experiments. If we remove an experiment,
+        then it (and only it) should no longer exist.
+        """
+
+        os.environ["RESEARCH_PATH"] = DATA_DIR
+        assert not os.path.exists(DATA_DIR)
+
+        exp1 = Experiment(name="x", ident="foo", description="y")
+        exp1._save()
+        exp2 = Experiment(name="a", ident="bar", description="z")
+        exp2._save()
+
+        assert os.path.exists(exp1.experiment_directory)
+        assert os.path.exists(exp2.experiment_directory)
+        assert len(Experiment.list()) == 2
+
+        # Delete the experiment.
+        exp1.delete()
+        assert not os.path.exists(exp1.experiment_directory)
+        assert os.path.exists(exp2.experiment_directory)
+        assert len(Experiment.list()) == 1
+
 
 class TestArtifact:
     """
